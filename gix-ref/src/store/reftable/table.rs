@@ -1,10 +1,12 @@
+//! A single reftable file
+
+use super::block::Block;
 use super::blocksource::Source;
-/// A single reftable file
+
 use super::{BlockType, Error, Result};
 
 use bytes::Buf;
 
-use std::io::Cursor;
 use std::path::PathBuf;
 
 /// Return the header size for the given version
@@ -171,11 +173,28 @@ impl Table {
             log_offsets,
         })
     }
+
+    pub fn init_block(&self, next_off: u64, want_type: Option<BlockType>) -> Result<Block> {
+        let header_off = if next_off > 0 { 0 } else { header_size(self.version) };
+        if next_off >= self.size {
+            return Err(Error::InvalidOffset);
+        }
+
+        Block::new(
+            self.source.as_ref(),
+            next_off as u32,
+            header_off,
+            self.block_size,
+            hash_size(self.hash_id),
+            want_type,
+        )
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::super::blocksource::BufferSource;
+    use super::{BlockType, header_size};
 
     // This is from a fresh git repository with an unborn main branch
     const INITIAL_REF_FILE: [u8; 124] = [
@@ -198,5 +217,12 @@ mod test {
         assert_eq!(4096, table.block_size);
         assert_eq!(1, table.min_update_index);
         assert_eq!(1, table.max_update_index);
+
+        let block = table.init_block(0, Some(BlockType::Ref)).expect("first ref block");
+
+        assert_eq!(header_size(table.version), block.header_off);
+        assert_eq!(1, block.restart_count);
+        assert_eq!(BlockType::Ref, block.block_type);
+        assert_eq!(56, block.full_block_size);
     }
 }
