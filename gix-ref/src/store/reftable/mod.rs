@@ -3,6 +3,8 @@ mod blocksource;
 mod record;
 mod table;
 
+use record::Record;
+
 /// Reftable result with its own set of errors
 type Result<T> = std::result::Result<T, Error>;
 
@@ -60,6 +62,25 @@ pub enum Error {
     MismatchedBlockType,
     #[error("invalid offset")]
     InvalidOffset,
+    #[error("there was an error in an iterator")]
+    Iterator,
+}
+
+/// Common iterator trait for an iterator that yields records
+trait Iter {
+    /// Position the iterator at the wanted record such that a call to `next()`
+    /// would return that record, if it exists.
+    ///
+    /// This probably actually wants a &Record and a Result<()>
+    fn seek(&mut self, want: Record) -> Result<()>;
+
+    /// Yield the next record and advance the iterator. Returns <0 on error, 0 when
+    /// a record was yielded, and >0 when the iterator hit an error.
+    ///
+    /// Provide the last record provided so we can re-use allocations.
+    /// Alternatively for the first time, provide a `Record::Empty` with the
+    /// type you wish.
+    fn next(&mut self, rec: Record) -> Option<Result<Record>>;
 }
 
 /// Read a big-endian 24 bit value as a u32

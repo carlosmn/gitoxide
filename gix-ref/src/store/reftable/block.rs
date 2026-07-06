@@ -142,13 +142,14 @@ impl BlockIter {
     pub fn seek_start(&mut self) {
         self.next_off = self.block.header_off + 4;
     }
+}
 
-    /// Get the next record for this iterator
-    ///
-    /// Provide the last record provided so we can re-use allocations.
-    /// Alternatively for the first time, provide a `Record::Empty` with the
-    /// type you wish.
-    pub fn next(&mut self, rec: Record) -> Option<Result<Record>> {
+impl super::Iter for BlockIter {
+    fn seek(&mut self, _want: Record) -> Result<()> {
+        todo!();
+    }
+
+    fn next(&mut self, rec: Record) -> Option<Result<Record>> {
         if self.next_off >= self.block.restart_off {
             return None;
         }

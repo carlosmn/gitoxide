@@ -193,6 +193,7 @@ impl Table {
 
 #[cfg(test)]
 mod test {
+    use super::super::Iter;
     use super::super::block::BlockIter;
     use super::super::blocksource::BufferSource;
     use super::super::record::{Record, RefValue};
