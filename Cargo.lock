@@ -2320,6 +2320,7 @@ version = "0.0.0"
 name = "gix-ref"
 version = "0.65.0"
 dependencies = [
+ "bytes",
  "document-features",
  "gix-actor",
  "gix-date",
