@@ -1,13 +1,15 @@
 //! A single reftable file
 
-use super::block::Block;
+use super::block::{Block, BlockIter};
 use super::blocksource::Source;
+use super::record::Record;
 
 use super::{BlockType, Error, Result};
 
 use bytes::Buf;
 
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// Return the header size for the given version
 fn header_size(version: u8) -> u32 {
@@ -174,20 +176,164 @@ impl Table {
         })
     }
 
-    pub fn init_block(&self, next_off: u64, want_type: Option<BlockType>) -> Result<Block> {
+    pub fn offsets_for(&self, typ: BlockType) -> Option<&Offsets> {
+        match typ {
+            BlockType::Ref => self.ref_offsets.as_ref(),
+            BlockType::Log => self.log_offsets.as_ref(),
+            BlockType::Obj => self.obj_offsets.as_ref(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn init_block(&self, next_off: u64, want_type: Option<BlockType>) -> Option<Result<Block>> {
         let header_off = if next_off > 0 { 0 } else { header_size(self.version) };
         if next_off >= self.size {
-            return Err(Error::InvalidOffset);
+            return None;
         }
 
-        Block::new(
+        Some(Block::new(
             self.source.as_ref(),
             next_off as u32,
             header_off,
             self.block_size,
             hash_size(self.hash_id),
             want_type,
-        )
+        ))
+    }
+}
+
+/// Iterator over a table
+#[derive(Clone)]
+pub struct TableIter {
+    table: Rc<Table>,
+    typ: Option<BlockType>,
+    block_off: u64,
+    bi: BlockIter,
+    is_finished: bool,
+}
+
+impl TableIter {
+    pub fn new(table: Rc<Table>, typ: BlockType) -> Self {
+        // If there is nothing for this type then we mark it as finished
+        // immediately
+        let is_finished = table.offsets_for(typ).is_none();
+
+        Self {
+            table,
+            typ: None,
+            block_off: 0,
+            bi: BlockIter::default(),
+            is_finished,
+        }
+    }
+
+    fn next_block(&mut self) -> Result<bool> {
+        let next_block_off = self.block_off + self.bi.block.full_block_size as u64;
+        let block = match self.table.init_block(next_block_off, self.typ) {
+            Some(Ok(block)) => block,
+            Some(Err(e)) => return Err(e),
+            None => {
+                self.is_finished = true;
+                return Ok(false);
+            }
+        };
+
+        self.block_off = next_block_off;
+        self.is_finished = false;
+        self.bi = BlockIter::from_block(block);
+
+        Ok(true)
+    }
+
+    fn seek_to(&mut self, off: u64, typ: Option<BlockType>) -> Result<()> {
+        let block = match self.table.init_block(off, typ) {
+            Some(Ok(block)) => block,
+            Some(Err(e)) => return Err(e),
+            None => return Ok(()),
+        };
+
+        self.typ = block.block_type;
+        self.block_off = off;
+        self.bi = BlockIter::from_block(block);
+        self.is_finished = false;
+
+        Ok(())
+    }
+
+    fn seek_start(&mut self, mut typ: BlockType, index: bool) -> Result<()> {
+        let offs = self.table.offsets_for(typ);
+        let mut off = offs.map_or(0, |o| o.offset);
+        if index {
+            off = match offs {
+                Some(offs) => offs.index_offset,
+                None => return Err(Error::Iterator),
+            };
+
+            typ = BlockType::RefIndex;
+        }
+
+        self.seek_to(off, Some(typ))
+    }
+
+    fn seek_indexed(&mut self, want: Record) -> Result<()> {
+        unimplemented!();
+    }
+
+    fn seek_linear(&mut self, want: Record) -> Result<()> {
+        let mut got_key = Vec::new();
+        let want_key = want.clone_key();
+
+        // First we need to locate the block that must contain our record. To
+        // do so we scan through blocks linearly until we find the first block
+        // whose first key is bigger than our wanted key. Once we have found
+        // that block we know that the key must be contained in the preceding
+        // block.
+        //
+        // This algorithm is somewhat unfortunate because it means that we
+        // always have to seek one block too far and then back up. But as we
+        // can only decode the _first_ key of a block but not its _last_ key we
+        // have no other way to do this.
+        loop {
+            let mut next = self.clone();
+            if !next.next_block()? {
+                break;
+            }
+
+            next.bi.block.first_key(&mut got_key)?;
+            if got_key[..] > want_key[..] {
+                break;
+            }
+
+            *self = next;
+        }
+
+        // We have located the block that must contain our record, so we seek
+        // the wanted key inside of it. If the block does not contain our key
+        // we know that the corresponding record does not exist.
+        self.bi.seek_start();
+        self.bi.seek_key(&want_key)?;
+
+        Ok(())
+    }
+}
+
+impl super::Iter for TableIter {
+    fn seek(&mut self, want: Record) -> Result<()> {
+        let typ = want.record_type();
+        let offs = self.table.offsets_for(typ);
+
+        let index = offs.is_some_and(|o| o.index_offset != 0);
+        self.seek_start(typ, index)?;
+
+        if index {
+            self.seek_indexed(want)
+        } else {
+            self.seek_linear(want)
+        }
+    }
+
+    fn next(&mut self, rec: Record) -> Option<Result<Record>> {
+        todo!();
     }
 }
 
@@ -221,16 +367,16 @@ mod test {
         assert_eq!(1, table.min_update_index);
         assert_eq!(1, table.max_update_index);
 
-        let block = table.init_block(0, Some(BlockType::Ref)).expect("first ref block");
+        let block = table.init_block(0, Some(BlockType::Ref)).expect("first ref block").expect("first ref block");
 
         assert_eq!(header_size(table.version), block.header_off);
         assert_eq!(1, block.restart_count);
-        assert_eq!(BlockType::Ref, block.block_type);
+        assert_eq!(Some(BlockType::Ref), block.block_type);
         assert_eq!(56, block.full_block_size);
 
         let mut iter = BlockIter::from_block(block);
         let rec = iter
-            .next(Record::Empty(BlockType::Ref))
+            .next(Record::Want(BlockType::Ref, None))
             .expect("one ref")
             .expect("correctly parsing HEAD");
 

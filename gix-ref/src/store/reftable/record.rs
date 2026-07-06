@@ -62,8 +62,9 @@ fn decode_string(b: &mut Bytes) -> Result<Vec<u8>> {
 /// record.
 #[derive(Debug)]
 pub enum Record {
-    /// Empty record to indicate a wanted type that we have not decode into yet
-    Empty(BlockType),
+    /// Empty record to indicate a wanted type that we have not decoded into
+    /// yet. The second field is an optional key for when we're seeking.
+    Want(BlockType, Option<Vec<u8>>),
     Ref(RefRecord),
     Log(LogRecord),
     Obj(ObjRecord),
@@ -71,6 +72,25 @@ pub enum Record {
 }
 
 impl Record {
+    pub fn record_type(&self) -> BlockType {
+        match self {
+            Self::Want(typ, _) => *typ,
+            Self::Ref(_) => BlockType::Ref,
+            Self::Log(_) => BlockType::Log,
+            Self::Obj(_) => BlockType::Obj,
+            Self::Index(_) => BlockType::RefIndex,
+        }
+    }
+
+    pub fn clone_key(&self) -> Vec<u8> {
+        match self {
+            Self::Want(_, Some(key)) => key.clone(),
+            Self::Want(_, None) => Vec::new(),
+            Self::Ref(RefRecord { refname, .. }) => refname.clone(),
+            _ => todo!(),
+        }
+    }
+
     /// Decode the record given by the type in `rec`.
     ///
     /// Taking the "old" record allows us to reduce allocations. This is an
@@ -84,7 +104,8 @@ impl Record {
         scratch: &mut Vec<u8>,
     ) -> Result<Self> {
         let rec = match rec {
-            Self::Ref(_) | Self::Empty(BlockType::Ref) => {
+            Self::Ref(_) | Self::Want(BlockType::Ref, _) => {
+                // FIXME: we should be able to reuse the buffer from Want
                 let rec = if let Self::Ref(rec) = rec { Some(rec) } else { None };
                 let rec = RefRecord::decode(rec, key, b, extra, hash_size, scratch)?;
                 Self::Ref(rec)

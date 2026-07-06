@@ -5,6 +5,8 @@ mod table;
 
 use record::Record;
 
+use std::cmp::Ordering;
+
 /// Reftable result with its own set of errors
 type Result<T> = std::result::Result<T, Error>;
 
@@ -120,4 +122,46 @@ fn decode_key(b: &mut Bytes, last_key: &mut Vec<u8>) -> Result<u8> {
         .map_err(|_| Error::IoError)?;
 
     Ok(extra)
+}
+
+/// find smallest index i in [0, sz) at which `f(i) -> Greater`, assuming that f is
+/// ascending. Return sz if `f(i) -> Equals` for all indices. The search is aborted
+/// and `sz` is returned in case `f(i) -> Less`.
+///
+/// Contrary to bsearch(3), this returns something useful if the argument is not
+/// found.
+fn binsearch<F>(sz: usize, mut f: F) -> Result<usize>
+where
+    F: FnMut(usize) -> Result<Ordering>,
+{
+    let mut lo = 0_usize;
+    let mut hi = sz;
+
+    /* Invariants:
+     *
+     *  (hi == sz) || f(hi) == true
+     *  (lo == 0 && f(0) == true) || fi(lo) == false
+     */
+    while hi - lo > 1 {
+        let mid = lo + (hi - lo) / 2;
+        let ret = f(mid)?;
+        if ret == Ordering::Less {
+            return Ok(sz);
+        }
+
+        if ret == Ordering::Greater {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+
+    if lo != 0 {
+        return Ok(hi);
+    }
+
+    match f(0)? {
+        Ordering::Greater => Ok(0),
+        _ => Ok(1),
+    }
 }
