@@ -1,0 +1,202 @@
+//! The different kinds of records in reftables
+
+use crate::ObjectId;
+
+use gix_features::decode::leb64_from_read;
+
+use bytes::{Buf, Bytes};
+
+use super::{BlockType, Error, Result};
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub(crate) enum RefValueType {
+    /// Tombstone to hide deletions from earlier tables
+    Deletion = 0x0,
+    /// A simple ref
+    Val1 = 0x1,
+    /// A tag plus its peeled hash
+    Val2 = 0x2,
+    /// A symbolic reference
+    Symref = 0x3,
+}
+
+impl TryFrom<u8> for RefValueType {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self> {
+        let val = match value {
+            0x0 => Self::Deletion,
+            0x1 => Self::Val1,
+            0x2 => Self::Val2,
+            0x3 => Self::Symref,
+            _ => return Err(Error::FormatError),
+        };
+
+        Ok(val)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum RefValue {
+    Val1(ObjectId),
+    Val2(ObjectId, ObjectId),
+    Symref(Vec<u8>),
+}
+
+fn decode_string(b: &mut Bytes) -> Result<Vec<u8>> {
+    let (tsize, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+    if (b.remaining() as u64) < tsize {
+        return Err(Error::FormatError);
+    }
+
+    let v = b[..tsize as usize].to_vec();
+    b.advance(tsize as usize);
+
+    Ok(v)
+}
+
+/// A record from a table
+///
+/// We use an enum instead of a trait plus structs so we don't have to box every
+/// record.
+#[derive(Debug)]
+pub enum Record {
+    /// Empty record to indicate a wanted type that we have not decode into yet
+    Empty(BlockType),
+    Ref(RefRecord),
+    Log(LogRecord),
+    Obj(ObjRecord),
+    Index(IndexRecord),
+}
+
+impl Record {
+    /// Decode the record given by the type in `rec`.
+    ///
+    /// Taking the "old" record allows us to reduce allocations. This is an
+    /// optimisation copied from the implementation in git.git.
+    pub fn decode(
+        rec: Self,
+        key: &[u8],
+        b: &mut Bytes,
+        extra: u8,
+        hash_size: u32,
+        scratch: &mut Vec<u8>,
+    ) -> Result<Self> {
+        let rec = match rec {
+            Self::Ref(_) | Self::Empty(BlockType::Ref) => {
+                let rec = if let Self::Ref(rec) = rec { Some(rec) } else { None };
+                let rec = RefRecord::decode(rec, key, b, extra, hash_size, scratch)?;
+                Self::Ref(rec)
+            }
+            _ => todo!(),
+        };
+
+        Ok(rec)
+    }
+}
+
+#[derive(Debug)]
+pub struct RefRecord {
+    pub(crate) refname: Vec<u8>,
+    pub(crate) update_index: u64,
+    pub(crate) value_type: RefValueType,
+    pub(crate) value: Option<RefValue>,
+}
+
+impl RefRecord {
+    pub fn decode(
+        rec: Option<Self>,
+        key: &[u8],
+        b: &mut Bytes,
+        val_type: u8,
+        hash_size: u32,
+        _scratch: &mut Vec<u8>,
+    ) -> Result<Self> {
+        let mut refname = rec.map_or_else(Vec::new, |mut r| std::mem::take(&mut r.refname));
+
+        let (update_index, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+        let value_type: RefValueType = val_type.try_into()?; // C version aborts
+
+        let hash_size = hash_size as usize;
+        let value = match value_type {
+            RefValueType::Val1 => {
+                if b.remaining() < hash_size {
+                    return Err(Error::FormatError);
+                }
+
+                let val = ObjectId::from_bytes_or_panic(&b[..hash_size]);
+                b.advance(hash_size);
+
+                Some(RefValue::Val1(val))
+            }
+            RefValueType::Val2 => {
+                if b.remaining() < (2 * hash_size) {
+                    return Err(Error::FormatError);
+                }
+
+                let val1 = ObjectId::from_bytes_or_panic(&b[..hash_size]);
+                b.advance(hash_size);
+                let val2 = ObjectId::from_bytes_or_panic(&b[..hash_size]);
+                b.advance(hash_size);
+
+                Some(RefValue::Val2(val1, val2))
+            }
+            RefValueType::Symref => {
+                let target = decode_string(b)?;
+                Some(RefValue::Symref(target))
+            }
+            RefValueType::Deletion => None,
+        };
+
+        refname.clear();
+        refname.extend_from_slice(key);
+
+        Ok(Self {
+            refname,
+            update_index,
+            value_type,
+            value,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(u8)]
+enum LogValueType {
+    /// Tombstone to hide deletions from earlier tables
+    Deletion = 0x0,
+    /// A simple update
+    Update = 0x1,
+}
+
+#[derive(Debug)]
+pub struct LogRecord {
+    refname: Vec<u8>,
+    value_type: LogValueType,
+    update_index: u64,
+
+    new_hash: ObjectId,
+    old_hash: ObjectId,
+    name: Vec<u8>,
+    email: Vec<u8>,
+    time: u64,
+    tz_offset: u16,
+    message: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct ObjRecord {
+    /// Leading bytes of the object ID
+    hash_prefix: Vec<u8>,
+    /// A vector of file offsets
+    offsets: Vec<u64>,
+}
+
+#[derive(Debug)]
+pub struct IndexRecord {
+    /// Offset of block
+    offset: u64,
+    /// Last key of the block
+    last_key: Vec<u8>,
+}

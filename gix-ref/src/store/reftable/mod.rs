@@ -1,5 +1,6 @@
 mod block;
 mod blocksource;
+mod record;
 mod table;
 
 /// Reftable result with its own set of errors
