@@ -1,4 +1,5 @@
 mod blocksource;
+mod table;
 
 /// Reftable result with its own set of errors
 type Result<T> = std::result::Result<T, Error>;
@@ -57,4 +58,10 @@ pub enum Error {
     MismatchedBlockType,
     #[error("invalid offset")]
     InvalidOffset,
+}
+
+/// Read a big-endian 24 bit value as a u32
+fn get_be24(buf: &[u8]) -> u32 {
+    let bytes = [0, buf[0], buf[1], buf[2]];
+    u32::from_be_bytes(bytes)
 }

@@ -25,7 +25,7 @@ serde = ["dep:serde", "gix-hash/serde", "gix-actor/serde", "gix-object/serde"]
 ## Enable support for thread-safety.
 parallel = ["gix-features/parallel"]
 ## Enable support for reftable
-reftable = ["dep:bytes"]
+reftable = ["dep:bytes", "gix-features/crc32"]
 
 [dependencies]
 gix-features = { version = "^0.48.1", path = "../gix-features", features = ["walkdir"] }
