@@ -1,7 +1,10 @@
 use super::blocksource::Source;
-use super::{BlockType, Error, Result};
+use super::record::Record;
+use super::{BlockType, Error, Result, decode_key};
 
 use bytes::{Buf, Bytes};
+
+use std::ops::Range;
 
 const DEFAULT_BLOCK_SIZE: u32 = 4096;
 
@@ -111,5 +114,76 @@ impl Block {
             full_block_size,
             block_type,
         })
+    }
+}
+
+pub struct BlockIter {
+    block: Block,
+    /// Offset from the start of the block to the next block to read
+    next_off: u32,
+
+    /// Key for the last entry we read
+    last_key: Vec<u8>,
+    /// Re-used scratch buffer
+    scratch: Vec<u8>,
+}
+
+impl BlockIter {
+    pub fn from_block(block: Block) -> Self {
+        let next_off = block.header_off + 4;
+        Self {
+            block,
+            next_off,
+            last_key: Vec::new(),
+            scratch: Vec::new(),
+        }
+    }
+
+    pub fn seek_start(&mut self) {
+        self.next_off = self.block.header_off + 4;
+    }
+
+    /// Get the next record for this iterator
+    ///
+    /// Provide the last record provided so we can re-use allocations.
+    /// Alternatively for the first time, provide a `Record::Empty` with the
+    /// type you wish.
+    pub fn next(&mut self, rec: Record) -> Option<Result<Record>> {
+        if self.next_off >= self.block.restart_off {
+            return None;
+        }
+
+        let initial_len = (self.block.restart_off - self.next_off) as usize;
+        let range = {
+            let start = self.next_off as usize;
+            let end = self.next_off as usize + initial_len;
+
+            Range { start, end }
+        };
+
+        let mut data = self.block.block_data.slice(range);
+        let extra = match decode_key(&mut data, &mut self.last_key) {
+            Ok(extra) => extra,
+            Err(e) => return Some(Err(e)),
+        };
+        if self.last_key.is_empty() {
+            return Some(Err(Error::FormatError));
+        }
+
+        let record = match Record::decode(
+            rec,
+            &self.last_key,
+            &mut data,
+            extra,
+            self.block.hash_size,
+            &mut self.scratch,
+        ) {
+            Ok(rec) => rec,
+            Err(e) => return Some(Err(e)),
+        };
+
+        self.next_off += (initial_len - data.remaining()) as u32;
+
+        Some(Ok(record))
     }
 }

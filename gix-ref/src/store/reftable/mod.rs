@@ -67,3 +67,36 @@ fn get_be24(buf: &[u8]) -> u32 {
     let bytes = [0, buf[0], buf[1], buf[2]];
     u32::from_be_bytes(bytes)
 }
+
+use bytes::{Buf, Bytes, buf::Reader};
+use gix_features::decode::leb64_from_read;
+use std::io::Read;
+
+fn decode_keylen(b: &mut Bytes) -> Result<(u64, u64, u8)> {
+    let (prefix_len, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+    let (mut suffix_len, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+
+    // We encode e.g. the value_type for references here
+    let extra = (suffix_len & 0x7) as u8;
+    suffix_len >>= 3;
+
+    Ok((prefix_len, suffix_len, extra))
+}
+
+fn decode_key(b: &mut Bytes, last_key: &mut Vec<u8>) -> Result<u8> {
+    let (prefix_len, suffix_len, extra) = decode_keylen(b)?;
+
+    let len_left = b.remaining() as u64;
+    if len_left < suffix_len || prefix_len > last_key.len() as u64 {
+        return Err(Error::FormatError);
+    }
+
+    // Most of the time refs aren't wildly different lengths so we expect the
+    // initialization isn't going to be a significant cost.
+    last_key.resize((prefix_len + suffix_len) as usize, 0);
+    b.reader()
+        .read_exact(&mut last_key[prefix_len as usize..])
+        .map_err(|_| Error::IoError)?;
+
+    Ok(extra)
+}

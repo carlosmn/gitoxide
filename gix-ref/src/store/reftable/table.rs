@@ -193,7 +193,9 @@ impl Table {
 
 #[cfg(test)]
 mod test {
+    use super::super::block::BlockIter;
     use super::super::blocksource::BufferSource;
+    use super::super::record::{Record, RefValue};
     use super::{BlockType, header_size};
 
     // This is from a fresh git repository with an unborn main branch
@@ -224,5 +226,22 @@ mod test {
         assert_eq!(1, block.restart_count);
         assert_eq!(BlockType::Ref, block.block_type);
         assert_eq!(56, block.full_block_size);
+
+        let mut iter = BlockIter::from_block(block);
+        let rec = iter
+            .next(Record::Empty(BlockType::Ref))
+            .expect("one ref")
+            .expect("correctly parsing HEAD");
+
+        let head = match &rec {
+            Record::Ref(rec) => rec,
+            _ => panic!("record is not a ref"),
+        };
+
+        assert_eq!(b"HEAD", head.refname.as_slice());
+        assert_eq!(Some(RefValue::Symref("refs/heads/main".into())), head.value);
+
+        let past = iter.next(rec);
+        assert!(past.is_none());
     }
 }
