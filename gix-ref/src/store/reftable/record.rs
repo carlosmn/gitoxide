@@ -78,7 +78,7 @@ impl Record {
             Self::Ref(_) => BlockType::Ref,
             Self::Log(_) => BlockType::Log,
             Self::Obj(_) => BlockType::Obj,
-            Self::Index(_) => BlockType::RefIndex,
+            Self::Index(_) => BlockType::Index,
         }
     }
 

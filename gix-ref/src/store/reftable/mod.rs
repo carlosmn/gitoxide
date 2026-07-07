@@ -15,7 +15,7 @@ type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum BlockType {
     Log = b'g',
-    RefIndex = b'i',
+    Index = b'i',
     Ref = b'r',
     Obj = b'o',
 }
@@ -32,7 +32,7 @@ impl TryFrom<u8> for BlockType {
     fn try_from(value: u8) -> Result<Self> {
         let v = match value {
             b'g' => BlockType::Log,
-            b'i' => BlockType::RefIndex,
+            b'i' => BlockType::Index,
             b'r' => BlockType::Ref,
             b'o' => BlockType::Obj,
             _ => return Err(Error::FormatError),

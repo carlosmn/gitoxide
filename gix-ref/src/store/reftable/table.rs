@@ -269,7 +269,7 @@ impl TableIter {
                 None => return Err(Error::Iterator),
             };
 
-            typ = BlockType::RefIndex;
+            typ = BlockType::Index;
         }
 
         self.seek_to(off, Some(typ))
