@@ -2,6 +2,7 @@ mod block;
 mod blocksource;
 mod merged;
 mod record;
+mod stack;
 mod table;
 
 use record::Record;
@@ -69,6 +70,8 @@ pub enum Error {
     Iterator,
     #[error("improper use of the API")]
     Api,
+    #[error("a reftable file does not exist")]
+    NotExist,
 }
 
 /// Common iterator trait for an iterator that yields records

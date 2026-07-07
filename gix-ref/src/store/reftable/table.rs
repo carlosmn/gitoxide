@@ -8,7 +8,7 @@ use super::{BlockType, Error, Iter, Result};
 
 use bytes::Buf;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 /// Return the header size for the given version
@@ -174,6 +174,10 @@ impl Table {
             obj_offsets,
             log_offsets,
         })
+    }
+
+    pub fn name(&self) -> &Path {
+        &self.name
     }
 
     pub fn offsets_for(&self, typ: BlockType) -> Option<&Offsets> {
