@@ -68,7 +68,7 @@ impl Block {
         table_block_size: u32,
         hash_size: u32,
         want_type: Option<BlockType>,
-    ) -> Result<Self> {
+    ) -> Option<Result<Self>> {
         // If there is no given table block size we guess at a sensible 4k for
         // the block and adjust if necessary once we figure out the block size.
         let guess_block_size = if table_block_size > 0 {
@@ -77,15 +77,25 @@ impl Block {
             DEFAULT_BLOCK_SIZE
         };
 
-        let mut block_data = read_block(source, offset as u64, guess_block_size)?;
-        let block_type: BlockType = block_data[header_size as usize].try_into()?;
+        let mut block_data = match read_block(source, offset as u64, guess_block_size) {
+            Ok(d) => d,
+            Err(e) => return Some(Err(e)),
+        };
+        let block_type: BlockType = match block_data[header_size as usize].try_into() {
+            Ok(d) => d,
+            Err(e) => return Some(Err(e)),
+        };
+
         if want_type.is_some() && want_type != Some(block_type) {
-            return Err(Error::MismatchedBlockType);
+            return None;
         }
 
         let block_size = super::get_be24(&block_data[(header_size + 1) as usize..]);
         if block_size > guess_block_size {
-            block_data = read_block(source, offset as u64, block_size)?;
+            block_data = match read_block(source, offset as u64, block_size) {
+                Ok(d) => d,
+                Err(e) => return Some(Err(e)),
+            };
         }
 
         let mut full_block_size = table_block_size;
@@ -107,7 +117,7 @@ impl Block {
         let restart_count = (&block_data[(block_size - 2) as usize..]).get_u16();
         let restart_off = block_size - 2 - (3 * restart_count) as u32;
 
-        Ok(Self {
+        Some(Ok(Self {
             header_off: header_size,
             block_data,
             hash_size,
@@ -115,7 +125,7 @@ impl Block {
             restart_off,
             full_block_size,
             block_type: Some(block_type),
-        })
+        }))
     }
 
     /// Retrieve the first key of the block

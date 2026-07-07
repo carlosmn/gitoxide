@@ -195,14 +195,14 @@ impl Table {
             return None;
         }
 
-        Some(Block::new(
+        Block::new(
             self.source.as_ref(),
             next_off as u32,
             header_off,
             self.block_size,
             hash_size(self.hash_id),
             want_type,
-        ))
+        )
     }
 }
 
