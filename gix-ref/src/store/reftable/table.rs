@@ -54,10 +54,10 @@ pub struct Table {
     version: u8,
     block_size: u32,
 
-    min_update_index: u64,
-    max_update_index: u64,
+    pub(crate) min_update_index: u64,
+    pub(crate) max_update_index: u64,
     /// Only available in v2, defaults to SHA-1
-    hash_id: gix_hash::Kind,
+    pub(crate) hash_id: gix_hash::Kind,
 
     ref_offsets: Option<Offsets>,
     obj_offsets: Option<Offsets>,
@@ -275,11 +275,11 @@ impl TableIter {
         self.seek_to(off, Some(typ))
     }
 
-    fn seek_indexed(&mut self, want: Record) -> Result<()> {
+    fn seek_indexed(&mut self, want: &Record) -> Result<()> {
         unimplemented!();
     }
 
-    fn seek_linear(&mut self, want: Record) -> Result<()> {
+    fn seek_linear(&mut self, want: &Record) -> Result<()> {
         let mut got_key = Vec::new();
         let want_key = want.clone_key();
 
@@ -318,7 +318,7 @@ impl TableIter {
 }
 
 impl super::Iter for TableIter {
-    fn seek(&mut self, want: Record) -> Result<()> {
+    fn seek(&mut self, want: &Record) -> Result<()> {
         let typ = want.record_type();
         let offs = self.table.offsets_for(typ);
 

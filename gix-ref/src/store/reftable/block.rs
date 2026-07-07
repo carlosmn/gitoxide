@@ -278,7 +278,7 @@ fn restart_needle_less(idx: usize, needle: &[u8], block: &Block) -> Result<Order
 }
 
 impl super::Iter for BlockIter {
-    fn seek(&mut self, _want: Record) -> Result<()> {
+    fn seek(&mut self, _want: &Record) -> Result<()> {
         todo!();
     }
 

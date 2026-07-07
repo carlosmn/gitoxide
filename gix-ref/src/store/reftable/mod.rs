@@ -1,5 +1,6 @@
 mod block;
 mod blocksource;
+mod merged;
 mod record;
 mod table;
 
@@ -72,9 +73,7 @@ pub enum Error {
 trait Iter {
     /// Position the iterator at the wanted record such that a call to `next()`
     /// would return that record, if it exists.
-    ///
-    /// This probably actually wants a &Record and a Result<()>
-    fn seek(&mut self, want: Record) -> Result<()>;
+    fn seek(&mut self, want: &Record) -> Result<()>;
 
     /// Yield the next record and advance the iterator. Returns <0 on error, 0 when
     /// a record was yielded, and >0 when the iterator hit an error.
