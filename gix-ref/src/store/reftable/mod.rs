@@ -13,7 +13,7 @@ type Result<T> = std::result::Result<T, Error>;
 
 /// The type of the block in the reftable
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BlockType {
     Log = b'g',
     Index = b'i',
@@ -67,6 +67,8 @@ pub enum Error {
     InvalidOffset,
     #[error("there was an error in an iterator")]
     Iterator,
+    #[error("improper use of the API")]
+    Api,
 }
 
 /// Common iterator trait for an iterator that yields records

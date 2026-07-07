@@ -10,7 +10,7 @@ use super::{BlockType, Error, Result};
 
 use std::cmp::Ordering;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub(crate) enum RefValueType {
     /// Tombstone to hide deletions from earlier tables
@@ -39,7 +39,7 @@ impl TryFrom<u8> for RefValueType {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RefValue {
     Val1(ObjectId),
     Val2(ObjectId, ObjectId),
@@ -62,7 +62,7 @@ fn decode_string(b: &mut Bytes) -> Result<Vec<u8>> {
 ///
 /// We use an enum instead of a trait plus structs so we don't have to box every
 /// record.
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq)]
 pub enum Record {
     /// Empty record to indicate a wanted type that we have not decoded into
     /// yet. The second field is an optional key for when we're seeking.
@@ -143,7 +143,7 @@ impl PartialOrd for Record {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RefRecord {
     pub(crate) refname: Vec<u8>,
     pub(crate) update_index: u64,
@@ -214,7 +214,7 @@ impl PartialOrd for RefRecord {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
 enum LogValueType {
     /// Tombstone to hide deletions from earlier tables
@@ -223,7 +223,7 @@ enum LogValueType {
     Update = 0x1,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogRecord {
     refname: Vec<u8>,
     value_type: LogValueType,
@@ -252,7 +252,7 @@ impl PartialOrd for LogRecord {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObjRecord {
     /// Leading bytes of the object ID
     hash_prefix: Vec<u8>,
@@ -266,7 +266,7 @@ impl PartialOrd for ObjRecord {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexRecord {
     /// Offset of block
     offset: u64,

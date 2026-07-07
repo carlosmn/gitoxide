@@ -4,7 +4,7 @@ use super::block::{Block, BlockIter};
 use super::blocksource::Source;
 use super::record::Record;
 
-use super::{BlockType, Error, Result};
+use super::{BlockType, Error, Iter, Result};
 
 use bytes::Buf;
 
@@ -227,6 +227,19 @@ impl TableIter {
         }
     }
 
+    fn next_in_block(&mut self, rec: Record) -> Option<Result<Record>> {
+        match self.bi.next(rec) {
+            Some(Err(e)) => Some(Err(e)),
+            Some(Ok(mut rec)) => {
+                if let Record::Ref(rec) = &mut rec {
+                    rec.update_index += self.table.min_update_index;
+                }
+                Some(Ok(rec))
+            }
+            None => None,
+        }
+    }
+
     fn next_block(&mut self) -> Result<bool> {
         let next_block_off = self.block_off + self.bi.block.full_block_size as u64;
         let block = match self.table.init_block(next_block_off, self.typ) {
@@ -332,13 +345,39 @@ impl super::Iter for TableIter {
         }
     }
 
-    fn next(&mut self, rec: Record) -> Option<Result<Record>> {
-        todo!();
+    fn next(&mut self, mut rec: Record) -> Option<Result<Record>> {
+        let typ = rec.record_type();
+        if Some(typ) != self.typ {
+            return Some(Err(Error::Api));
+        }
+
+        loop {
+            if self.is_finished {
+                return None;
+            }
+
+            // Check whether the current block still has more records. If
+            // so, return it. If the iterator returns positive then the
+            // current block has been exhausted.
+            match self.next_in_block(rec) {
+                Some(Err(e)) => return Some(Err(e)),
+                Some(Ok(r)) => return Some(Ok(r)),
+                None => rec = Record::Want(typ, None),
+            }
+
+            // Otherwise, we need to continue to the next block in the
+            // table and retry. If there are no more blocks then the
+            // iterator is drained.
+            if let Err(e) = self.next_block() {
+                self.is_finished = true;
+                return Some(Err(e));
+            }
+        }
     }
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::super::Iter;
     use super::super::block::BlockIter;
     use super::super::blocksource::BufferSource;
@@ -346,7 +385,7 @@ mod test {
     use super::{BlockType, header_size};
 
     // This is from a fresh git repository with an unborn main branch
-    const INITIAL_REF_FILE: [u8; 124] = [
+    pub const INITIAL_REF_FILE: [u8; 124] = [
         0x52, 0x45, 0x46, 0x54, 0x01, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x72, 0x00, 0x00, 0x38, 0x00, 0x23, 0x48, 0x45, 0x41, 0x44, 0x00, 0x0f,
         0x72, 0x65, 0x66, 0x73, 0x2f, 0x68, 0x65, 0x61, 0x64, 0x73, 0x2f, 0x6d, 0x61, 0x69, 0x6e, 0x00, 0x00, 0x1c,
@@ -367,7 +406,10 @@ mod test {
         assert_eq!(1, table.min_update_index);
         assert_eq!(1, table.max_update_index);
 
-        let block = table.init_block(0, Some(BlockType::Ref)).expect("first ref block").expect("first ref block");
+        let block = table
+            .init_block(0, Some(BlockType::Ref))
+            .expect("first ref block")
+            .expect("first ref block");
 
         assert_eq!(header_size(table.version), block.header_off);
         assert_eq!(1, block.restart_count);
