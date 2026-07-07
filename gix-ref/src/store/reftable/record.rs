@@ -8,6 +8,8 @@ use bytes::{Buf, Bytes};
 
 use super::{BlockType, Error, Result};
 
+use std::cmp::Ordering;
+
 #[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub(crate) enum RefValueType {
@@ -117,7 +119,31 @@ impl Record {
     }
 }
 
-#[derive(Debug)]
+impl PartialEq for Record {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Ref(a), Self::Ref(b)) => a.eq(b),
+            (Self::Log(a), Self::Log(b)) => a.eq(b),
+            (Self::Obj(a), Self::Obj(b)) => a.eq(b),
+            (Self::Index(a), Self::Index(b)) => a.eq(b),
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for Record {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Self::Ref(a), Self::Ref(b)) => a.partial_cmp(b),
+            (Self::Log(a), Self::Log(b)) => a.partial_cmp(b),
+            (Self::Obj(a), Self::Obj(b)) => a.partial_cmp(b),
+            (Self::Index(a), Self::Index(b)) => a.partial_cmp(b),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct RefRecord {
     pub(crate) refname: Vec<u8>,
     pub(crate) update_index: u64,
@@ -182,6 +208,12 @@ impl RefRecord {
     }
 }
 
+impl PartialOrd for RefRecord {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.refname.partial_cmp(&other.refname)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
 enum LogValueType {
@@ -191,7 +223,7 @@ enum LogValueType {
     Update = 0x1,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct LogRecord {
     refname: Vec<u8>,
     value_type: LogValueType,
@@ -206,7 +238,21 @@ pub struct LogRecord {
     message: Vec<u8>,
 }
 
-#[derive(Debug)]
+impl PartialOrd for LogRecord {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let cmp = self.refname.partial_cmp(&other.refname);
+        if cmp != Some(Ordering::Equal) {
+            return cmp;
+        }
+
+        // Note that the comparison here is reversed. This is because the
+        // update index is reversed when comparing keys. For reference, see how
+        // we handle this in reftable_log_record_key()`.
+        other.update_index.partial_cmp(&self.update_index)
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct ObjRecord {
     /// Leading bytes of the object ID
     hash_prefix: Vec<u8>,
@@ -214,10 +260,22 @@ pub struct ObjRecord {
     offsets: Vec<u64>,
 }
 
-#[derive(Debug)]
+impl PartialOrd for ObjRecord {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.hash_prefix.partial_cmp(&other.hash_prefix)
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct IndexRecord {
     /// Offset of block
     offset: u64,
     /// Last key of the block
     last_key: Vec<u8>,
+}
+
+impl PartialOrd for IndexRecord {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.last_key.partial_cmp(&other.last_key)
+    }
 }
