@@ -275,8 +275,15 @@ fn restart_needle_less(idx: usize, needle: &[u8], block: &Block) -> Result<Order
 }
 
 impl super::Iter for BlockIter {
-    fn seek(&mut self, _want: &Record) -> Result<()> {
-        todo!();
+    fn seek(&mut self, want: &Record) -> Result<()> {
+        if self.block.block_type != Some(want.record_type()) {
+            return Err(Error::Api);
+        }
+
+        let key = want.clone_key();
+        self.seek_key(&key)?;
+
+        Ok(())
     }
 
     fn next(&mut self, rec: &mut Record) -> Result<bool> {
