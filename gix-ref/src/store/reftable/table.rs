@@ -227,16 +227,14 @@ impl TableIter {
         }
     }
 
-    fn next_in_block(&mut self, rec: Record) -> Option<Result<Record>> {
-        match self.bi.next(rec) {
-            Some(Err(e)) => Some(Err(e)),
-            Some(Ok(mut rec)) => {
-                if let Record::Ref(rec) = &mut rec {
-                    rec.update_index += self.table.min_update_index;
-                }
-                Some(Ok(rec))
+    fn next_in_block(&mut self, rec: &mut Record) -> Result<bool> {
+        if self.bi.next(rec)? {
+            if let Record::Ref(r) = rec {
+                r.update_index += self.table.min_update_index;
             }
-            None => None,
+            Ok(true)
+        } else {
+            Ok(false)
         }
     }
 
@@ -288,7 +286,7 @@ impl TableIter {
         self.seek_to(off, Some(typ))
     }
 
-    fn seek_indexed(&mut self, want: &Record) -> Result<()> {
+    fn seek_indexed(&mut self, _want: &Record) -> Result<()> {
         unimplemented!();
     }
 
@@ -345,24 +343,22 @@ impl super::Iter for TableIter {
         }
     }
 
-    fn next(&mut self, mut rec: Record) -> Option<Result<Record>> {
+    fn next(&mut self, rec: &mut Record) -> Result<bool> {
         let typ = rec.record_type();
         if Some(typ) != self.typ {
-            return Some(Err(Error::Api));
+            return Err(Error::Api);
         }
 
         loop {
             if self.is_finished {
-                return None;
+                return Ok(false);
             }
 
             // Check whether the current block still has more records. If
-            // so, return it. If the iterator returns positive then the
+            // so, return it. If the iterator returns false then the
             // current block has been exhausted.
-            match self.next_in_block(rec) {
-                Some(Err(e)) => return Some(Err(e)),
-                Some(Ok(r)) => return Some(Ok(r)),
-                None => rec = Record::Want(typ, None),
+            if self.next_in_block(rec)? {
+                return Ok(true);
             }
 
             // Otherwise, we need to continue to the next block in the
@@ -370,7 +366,7 @@ impl super::Iter for TableIter {
             // iterator is drained.
             if let Err(e) = self.next_block() {
                 self.is_finished = true;
-                return Some(Err(e));
+                return Err(e);
             }
         }
     }
@@ -417,10 +413,9 @@ pub(crate) mod test {
         assert_eq!(56, block.full_block_size);
 
         let mut iter = BlockIter::from_block(block);
-        let rec = iter
-            .next(Record::Want(BlockType::Ref, None))
-            .expect("one ref")
-            .expect("correctly parsing HEAD");
+        let mut rec = Record::for_search(BlockType::Ref, None);
+        let res = iter.next(&mut rec).expect("iterate once");
+        assert!(res);
 
         let head = match &rec {
             Record::Ref(rec) => rec,
@@ -430,7 +425,7 @@ pub(crate) mod test {
         assert_eq!(b"HEAD", head.refname.as_slice());
         assert_eq!(Some(RefValue::Symref("refs/heads/main".into())), head.value);
 
-        let past = iter.next(rec);
-        assert!(past.is_none());
+        let res = iter.next(&mut rec).expect("no error on iterating to the end");
+        assert!(!res);
     }
 }

@@ -64,9 +64,6 @@ fn decode_string(b: &mut Bytes) -> Result<Vec<u8>> {
 /// record.
 #[derive(Clone, Debug, Eq)]
 pub enum Record {
-    /// Empty record to indicate a wanted type that we have not decoded into
-    /// yet. The second field is an optional key for when we're seeking.
-    Want(BlockType, Option<Vec<u8>>),
     Ref(RefRecord),
     Log(LogRecord),
     Obj(ObjRecord),
@@ -74,9 +71,17 @@ pub enum Record {
 }
 
 impl Record {
+    pub fn for_search(typ: BlockType, key: Option<Vec<u8>>) -> Self {
+        match typ {
+            BlockType::Ref => Record::Ref(RefRecord::for_search(key)),
+            BlockType::Log => Record::Log(LogRecord::for_search(key)),
+            BlockType::Obj => Record::Obj(ObjRecord::for_search(key)),
+            BlockType::Index => Record::Index(IndexRecord::for_search(key)),
+        }
+    }
+
     pub fn record_type(&self) -> BlockType {
         match self {
-            Self::Want(typ, _) => *typ,
             Self::Ref(_) => BlockType::Ref,
             Self::Log(_) => BlockType::Log,
             Self::Obj(_) => BlockType::Obj,
@@ -86,8 +91,6 @@ impl Record {
 
     pub fn clone_key(&self) -> Vec<u8> {
         match self {
-            Self::Want(_, Some(key)) => key.clone(),
-            Self::Want(_, None) => Vec::new(),
             Self::Ref(RefRecord { refname, .. }) => refname.clone(),
             _ => todo!(),
         }
@@ -95,27 +98,20 @@ impl Record {
 
     /// Decode the record given by the type in `rec`.
     ///
-    /// Taking the "old" record allows us to reduce allocations. This is an
-    /// optimisation copied from the implementation in git.git.
+    /// Replacing the record in-place allows us to reduce allocations. This is
+    /// an optimisation copied from the implementation in git.git.
     pub fn decode(
-        rec: Self,
+        rec: &mut Self,
         key: &[u8],
         b: &mut Bytes,
         extra: u8,
         hash_size: u32,
         scratch: &mut Vec<u8>,
-    ) -> Result<Self> {
-        let rec = match rec {
-            Self::Ref(_) | Self::Want(BlockType::Ref, _) => {
-                // FIXME: we should be able to reuse the buffer from Want
-                let rec = if let Self::Ref(rec) = rec { Some(rec) } else { None };
-                let rec = RefRecord::decode(rec, key, b, extra, hash_size, scratch)?;
-                Self::Ref(rec)
-            }
+    ) -> Result<()> {
+        match rec {
+            Self::Ref(rec) => RefRecord::decode(rec, key, b, extra, hash_size, scratch),
             _ => todo!(),
-        };
-
-        Ok(rec)
+        }
     }
 }
 
@@ -152,15 +148,26 @@ pub struct RefRecord {
 }
 
 impl RefRecord {
+    pub fn for_search(refname: Option<Vec<u8>>) -> Self {
+        let refname = refname.unwrap_or_default();
+
+        Self {
+            refname,
+            update_index: 0,
+            value_type: RefValueType::Deletion,
+            value: None,
+        }
+    }
+
     pub fn decode(
-        rec: Option<Self>,
+        rec: &mut Self,
         key: &[u8],
         b: &mut Bytes,
         val_type: u8,
         hash_size: u32,
         _scratch: &mut Vec<u8>,
-    ) -> Result<Self> {
-        let mut refname = rec.map_or_else(Vec::new, |mut r| std::mem::take(&mut r.refname));
+    ) -> Result<()> {
+        let mut refname = std::mem::take(&mut rec.refname);
 
         let (update_index, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
         let value_type: RefValueType = val_type.try_into()?; // C version aborts
@@ -199,12 +206,14 @@ impl RefRecord {
         refname.clear();
         refname.extend_from_slice(key);
 
-        Ok(Self {
+        *rec = Self {
             refname,
             update_index,
             value_type,
             value,
-        })
+        };
+
+        Ok(())
     }
 }
 
@@ -238,6 +247,25 @@ pub struct LogRecord {
     message: Vec<u8>,
 }
 
+impl LogRecord {
+    fn for_search(refname: Option<Vec<u8>>) -> Self {
+        let refname = refname.unwrap_or_default();
+
+        Self {
+            refname,
+            value_type: LogValueType::Deletion,
+            update_index: 0,
+            new_hash: ObjectId::null(gix_hash::Kind::Sha1),
+            old_hash: ObjectId::null(gix_hash::Kind::Sha1),
+            name: Vec::new(),
+            email: Vec::new(),
+            time: 0,
+            tz_offset: 0,
+            message: Vec::new(),
+        }
+    }
+}
+
 impl PartialOrd for LogRecord {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let cmp = self.refname.partial_cmp(&other.refname);
@@ -260,6 +288,17 @@ pub struct ObjRecord {
     offsets: Vec<u64>,
 }
 
+impl ObjRecord {
+    pub fn for_search(hash_prefix: Option<Vec<u8>>) -> Self {
+        let hash_prefix = hash_prefix.unwrap_or_default();
+
+        Self {
+            hash_prefix,
+            offsets: Vec::new(),
+        }
+    }
+}
+
 impl PartialOrd for ObjRecord {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.hash_prefix.partial_cmp(&other.hash_prefix)
@@ -272,6 +311,14 @@ pub struct IndexRecord {
     offset: u64,
     /// Last key of the block
     last_key: Vec<u8>,
+}
+
+impl IndexRecord {
+    pub fn for_search(last_key: Option<Vec<u8>>) -> Self {
+        let last_key = last_key.unwrap_or_default();
+
+        Self { offset: 0, last_key }
+    }
 }
 
 impl PartialOrd for IndexRecord {

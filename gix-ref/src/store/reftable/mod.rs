@@ -77,13 +77,14 @@ trait Iter {
     /// would return that record, if it exists.
     fn seek(&mut self, want: &Record) -> Result<()>;
 
-    /// Yield the next record and advance the iterator. Returns <0 on error, 0 when
-    /// a record was yielded, and >0 when the iterator hit an error.
+    /// Yield the next record and advance the iterator.
+    ///
+    /// Returns `Err` on error, and Ok(true) if we yielded a value.
     ///
     /// Provide the last record provided so we can re-use allocations.
-    /// Alternatively for the first time, provide a `Record::Empty` with the
-    /// type you wish.
-    fn next(&mut self, rec: Record) -> Option<Result<Record>>;
+    /// Alternatively for the first time, provide one created with
+    /// [`Record::for_search()`].
+    fn next(&mut self, rec: &mut Record) -> Result<bool>;
 }
 
 /// Read a big-endian 24 bit value as a u32

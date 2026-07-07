@@ -117,7 +117,7 @@ impl MergedIter {
         let mut recs = Vec::with_capacity(mt.tables.len());
         for table in mt.tables.iter() {
             iters.push(TableIter::new(table.clone(), typ));
-            recs.push(RefCell::new(Record::Want(typ, None)));
+            recs.push(RefCell::new(Record::for_search(typ, None)));
         }
 
         Self {
@@ -129,17 +129,13 @@ impl MergedIter {
         }
     }
 
-    pub fn advance_subiter(&mut self, i: usize) -> Result<()> {
+    pub fn advance_subiter(&mut self, i: usize) -> Result<bool> {
         let iter = &mut self.iters[i];
-        let typ = self.recs[i].borrow().record_type();
-        let rec = self.recs[i].replace(Record::Want(typ, None));
+        let rec = &mut *self.recs[i].borrow_mut();
 
-        let rec = match iter.next(rec) {
-            Some(Ok(rec)) => rec,
-            Some(Err(e)) => return Err(e),
-            None => Record::Want(typ, None),
-        };
-        self.recs[i].replace(rec);
+        if !iter.next(rec)? {
+            return Ok(false);
+        }
 
         let entry = PqEntry {
             index: i,
@@ -148,7 +144,7 @@ impl MergedIter {
 
         self.pq.push(entry);
 
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -172,7 +168,7 @@ impl super::Iter for MergedIter {
         Ok(())
     }
 
-    fn next(&mut self, rec: Record) -> Option<Result<Record>> {
+    fn next(&mut self, rec: &mut Record) -> Result<bool> {
         let mut empty = self.pq.is_empty();
 
         if self.advance_index >= 0 {
@@ -192,15 +188,16 @@ impl super::Iter for MergedIter {
                 return self.iters[i].next(rec);
             }
 
-            if let Err(e) = self.advance_subiter(i) {
-                return Some(Err(e));
-            }
+            self.advance_subiter(i)?;
 
             empty = false; // is this necesary?
             self.advance_index = -1;
         }
 
-        let entry = self.pq.pop()?;
+        let entry = match self.pq.pop() {
+            Some(entry) => entry,
+            None => return Ok(false),
+        };
 
         // One can also use reftable as datacenter-local storage, where the ref
         // database is maintained in globally consistent database (eg.
@@ -213,7 +210,7 @@ impl super::Iter for MergedIter {
             let top_rec = self.recs[top.index].borrow();
 
             match top_rec.partial_cmp(&entry_rec) {
-                None => return Some(Err(Error::Iterator)),
+                None => return Err(Error::Iterator),
                 Some(Ordering::Greater) => break,
                 _ => {}
             }
@@ -222,13 +219,13 @@ impl super::Iter for MergedIter {
             drop(top_rec);
             let top_index = top.index;
             self.pq.pop().expect("pq is not empty");
-            if let Err(e) = self.advance_subiter(top_index) {
-                return Some(Err(e));
-            }
+            self.advance_subiter(top_index)?;
         }
 
         self.advance_index = entry.index as isize;
-        Some(Ok(self.recs[entry.index].borrow().clone()))
+        std::mem::swap(rec, &mut *self.recs[entry.index].borrow_mut());
+
+        Ok(true)
     }
 }
 
@@ -252,12 +249,12 @@ mod test {
         let merged = MergedTable::new(tables, hash_id).expect("merged table creation");
         let mut iter = MergedIter::from_merged(&merged, BlockType::Ref);
 
-        iter.seek(&Record::Want(BlockType::Ref, None))
-            .expect("finding the nil/first record");
-        let rec = iter
-            .next(Record::Want(BlockType::Ref, None))
-            .expect("one ref")
-            .expect("correctly parsing HEAD");
+        let mut rec = Record::for_search(BlockType::Ref, None);
+
+        iter.seek(&rec).expect("finding the nil/first record");
+
+        let res = iter.next(&mut rec).expect("iterate once");
+        assert!(res);
 
         let head = match &rec {
             Record::Ref(rec) => rec,
@@ -267,7 +264,7 @@ mod test {
         assert_eq!(b"HEAD", head.refname.as_slice());
         assert_eq!(Some(RefValue::Symref("refs/heads/main".into())), head.value);
 
-        let past = iter.next(rec);
-        assert!(past.is_none());
+        let res = iter.next(&mut rec).expect("no error on iterating to the end");
+        assert!(!res);
     }
 }

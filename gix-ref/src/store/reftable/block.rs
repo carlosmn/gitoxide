@@ -205,6 +205,8 @@ impl BlockIter {
             self.next_off = self.block.header_off + 4;
         }
 
+        let mut rec = Record::for_search(self.block.block_type.expect("block is loaded"), None);
+
         // We're looking for the last entry less than the wanted key so that
         // the next call to `block_reader_next()` would yield the wanted
         // record. We thus don't want to position our iterator at the sought
@@ -212,15 +214,10 @@ impl BlockIter {
         // far and then back up.
         loop {
             let prev_off = self.next_off;
-            let rec = Record::Want(self.block.block_type.expect("block is loaded"), None);
-            let rec = match self.next(rec) {
-                Some(Err(e)) => return Err(e),
-                Some(Ok(rec)) => rec,
-                None => {
-                    self.next_off = prev_off;
-                    return Ok(());
-                }
-            };
+            if !self.next(&mut rec)? {
+                self.next_off = prev_off;
+                return Ok(());
+            }
 
             // Check whether the current key is greater or equal to the
             // sought-after key. In case it is greater we know that the
@@ -282,9 +279,9 @@ impl super::Iter for BlockIter {
         todo!();
     }
 
-    fn next(&mut self, rec: Record) -> Option<Result<Record>> {
+    fn next(&mut self, rec: &mut Record) -> Result<bool> {
         if self.next_off >= self.block.restart_off {
-            return None;
+            return Ok(false);
         }
 
         let initial_len = (self.block.restart_off - self.next_off) as usize;
@@ -296,28 +293,22 @@ impl super::Iter for BlockIter {
         };
 
         let mut data = self.block.block_data.slice(range);
-        let extra = match decode_key(&mut data, &mut self.last_key) {
-            Ok(extra) => extra,
-            Err(e) => return Some(Err(e)),
-        };
+        let extra = decode_key(&mut data, &mut self.last_key)?;
         if self.last_key.is_empty() {
-            return Some(Err(Error::FormatError));
+            return Err(Error::FormatError);
         }
 
-        let record = match Record::decode(
+        Record::decode(
             rec,
             &self.last_key,
             &mut data,
             extra,
             self.block.hash_size,
             &mut self.scratch,
-        ) {
-            Ok(rec) => rec,
-            Err(e) => return Some(Err(e)),
-        };
+        )?;
 
         self.next_off += (initial_len - data.remaining()) as u32;
 
-        Some(Ok(record))
+        Ok(true)
     }
 }
