@@ -15,12 +15,12 @@ pub(crate) enum State {
 impl crate::Store {
     /// Return a new handle which sees all references if `namespace` is `None` or all read and write operations are limited
     /// to the given `namespace` if `Some`.
-    pub fn to_handle(&self) -> store::Handle {
+    pub(crate) fn to_handle(&self) -> store::Handle {
         Self::new_handle_inner(&self.inner, None)
     }
 
     /// As above, but supports a namespace to be set
-    pub fn to_handle_namespaced(&self, namespace: Option<Namespace>) -> store::Handle {
+    pub(crate) fn to_handle_namespaced(&self, namespace: Option<Namespace>) -> store::Handle {
         Self::new_handle_inner(&self.inner, namespace)
     }
 

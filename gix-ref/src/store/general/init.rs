@@ -7,7 +7,6 @@ mod error {
     pub enum Error {
         #[error("There was an error accessing the store's directory")]
         Io(#[from] std::io::Error),
-        #[cfg(not(feature = "reftable"))]
         #[error("Unsupported reference storage configured for this store: {0}")]
         UnsupportedRefStorage(crate::store::RefStorage),
     }
@@ -44,7 +43,37 @@ impl crate::Store {
                 }
                 #[cfg(not(feature = "reftable"))]
                 {
-                    Err(Error::UnsupportedRefStorage(RefStorage::Reftable))
+                    Err(Error::UnsupportedRefStorage(opts.ref_storage))
+                }
+            }
+        }
+    }
+
+    /// Like [`at()`][crate::Store::at()], but for linked worktrees.
+    pub fn for_linked_worktree(
+        git_dir: PathBuf,
+        common_dir: PathBuf,
+        opts: crate::store::init::Options,
+    ) -> Result<Self, Error> {
+        std::fs::read_dir(&git_dir)?;
+        match opts.ref_storage {
+            crate::store::RefStorage::Files => Ok(crate::Store {
+                inner: crate::store::State::Loose {
+                    store: file::Store::for_linked_worktree(git_dir, common_dir, opts),
+                },
+            }),
+            crate::store::RefStorage::Reftable => {
+                #[cfg(feature = "reftable")]
+                {
+                    Ok(crate::Store {
+                        inner: crate::store::State::Reftable {
+                            store: crate::reftable::Store::at(git_dir, opts),
+                        },
+                    })
+                }
+                #[cfg(not(feature = "reftable"))]
+                {
+                    Err(Error::UnsupportedRefStorage(opts.ref_storage))
                 }
             }
         }

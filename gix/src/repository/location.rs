@@ -133,7 +133,7 @@ impl crate::Repository {
         }
     }
 
-    /// Returns `Some(true)` if the reference database [is untouched](gix_ref::file::Store::is_pristine()).
+    /// Returns `Some(true)` if the reference database [is untouched](gix_ref::Store::is_pristine()).
     /// This typically indicates that the repository is new and empty.
     /// Return `None` if a defect in the database makes the answer uncertain.
     #[doc(alias = "is_empty", alias = "git2")]

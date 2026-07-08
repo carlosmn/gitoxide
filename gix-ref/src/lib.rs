@@ -118,6 +118,7 @@ pub mod store {
     }
 
     #[allow(dead_code)]
+    #[derive(Clone)]
     pub(crate) enum State {
         Loose {
             store: file::Store,
@@ -129,6 +130,7 @@ pub mod store {
     }
 
     pub(crate) mod general;
+    pub use general::Error as StoreError;
 
     ///
     #[path = "general/handle/mod.rs"]
@@ -143,7 +145,8 @@ pub mod store {
 /// The git reference store.
 /// TODO: Figure out if handles are needed at all, which depends on the ref-table implementation.
 #[allow(dead_code)]
-pub(crate) struct Store {
+#[derive(Clone)]
+pub struct Store {
     inner: store::State,
 }
 

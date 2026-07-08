@@ -11,12 +11,22 @@ use crate::{
 impl Reference<'_> {
     /// Return a platform for obtaining iterators over reference logs.
     pub fn log_iter(&self) -> gix_ref::file::log::iter::Platform<'_, '_> {
-        self.inner.log_iter(&self.repo.refs)
+        let store = self
+            .repo
+            .refs
+            .as_file()
+            .expect("reference log iteration currently requires a file-backed reference store");
+        self.inner.log_iter(store)
     }
 
     /// Return true if a reflog is present for this reference.
     pub fn log_exists(&self) -> bool {
-        self.inner.log_exists(&self.repo.refs)
+        let store = self
+            .repo
+            .refs
+            .as_file()
+            .expect("reference log access currently requires a file-backed reference store");
+        self.inner.log_exists(store)
     }
 }
 

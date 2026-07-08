@@ -24,19 +24,22 @@ fn run() -> crate::Result {
             let obj_buf = RefCell::new(Vec::new());
             let buf = std::fs::read(base.join(format!("baseline.{algo_name}")))?;
             let store = gix_odb::at(base.join("client").join(".git/objects"))?;
-            let refs = gix_ref::file::Store::at(
+            let refs = gix_ref::Store::at(
                 base.join("client").join(".git"),
                 gix_ref::store::init::Options {
                     write_reflog: WriteReflog::Disable,
                     ..Default::default()
                 },
-            );
+            )?;
+            let file_store = refs
+                .as_file()
+                .expect("negotiation baseline tests currently require file-backed refs");
             let lookup_names = |names: &[&str]| -> Vec<gix_hash::ObjectId> {
                 names
                     .iter()
                     .filter_map(|name| {
                         refs.try_find(*name).expect("one tag per commit").map(|mut r| {
-                            r.peel_to_id(&refs, &store).expect("works");
+                            r.peel_to_id(file_store, &store).expect("works");
                             r.target.into_id()
                         })
                     })

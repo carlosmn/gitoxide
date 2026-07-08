@@ -235,7 +235,7 @@ impl ThreadSafeRepository {
                 }
                 None => crate::RefStore::at(git_dir.to_owned(), ref_store_init_opts),
             }
-        };
+        }?;
         let head = refs.find("HEAD").ok();
         let git_install_dir = crate::path::install_dir().ok();
         let home = gix_path::env::home_dir().and_then(|home| env.home.check_opt(home));
@@ -429,8 +429,11 @@ impl ThreadSafeRepository {
             config.resolved = resolved.into();
         }
 
-        refs.write_reflog = config::cache::util::reflog_or_default(config.reflog, worktree_dir.is_some());
-        refs.namespace.clone_from(&config.refs_namespace);
+        refs.set_write_reflog(config::cache::util::reflog_or_default(
+            config.reflog,
+            worktree_dir.is_some(),
+        ));
+        refs.set_namespace(config.refs_namespace.clone());
         let prefix = replacement_objects_refs_prefix(&config.resolved, lenient_config, filter_config_section)?;
 
         if *git_dir_trust == gix_sec::Trust::Reduced && config.alloc_limit_bytes.is_none() {

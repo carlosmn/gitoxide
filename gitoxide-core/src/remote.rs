@@ -125,7 +125,7 @@ fn write_refs(
             precompose_unicode,
             prohibit_windows_device_names: cfg!(windows),
         },
-    );
+    )?;
     let edits = refs
         .iter()
         .map(ref_to_edit)

@@ -97,7 +97,13 @@ impl Iter<'_, '_> {
     /// Doing this is necessary as the packed-refs buffer is already held by the iterator, disallowing the consumer of the iterator
     /// to peel the returned references themselves.
     pub fn peeled(mut self) -> Result<Self, gix_ref::packed::buffer::open::Error> {
-        self.peel_with_packed = self.repo.refs.cached_packed_buffer()?;
+        let store = self
+            .repo
+            .refs
+            .as_file()
+            .expect("peeling currently requires a file-backed reference store");
+
+        self.peel_with_packed = store.cached_packed_buffer()?;
         self.peel = true;
         Ok(self)
     }
@@ -112,7 +118,11 @@ impl<'r> Iterator for Iter<'_, 'r> {
                 .and_then(|mut r| {
                     if self.peel {
                         let repo = &self.repo;
-                        r.peel_to_id_packed(&repo.refs, &repo.objects, self.peel_with_packed.as_ref().map(|p| &***p))
+                        let store = repo
+                            .refs
+                            .as_file()
+                            .expect("peeled iteration currently requires a file-backed reference store");
+                        r.peel_to_id(store, &repo.objects)
                             .map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send + Sync + 'static>)
                             .map(|_| r)
                     } else {

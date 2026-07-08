@@ -421,17 +421,14 @@ mod blocking_io {
             &out.ref_map.extra_refspecs.len() - 1,
             "mappings don't refer to non-existing implicit refspecs"
         );
-        let packed_refs = repo
-            .refs
-            .cached_packed_buffer()?
-            .expect("packed refs should be present");
+        let refs = repo.references()?.all()?.collect::<Result<Vec<_>, _>>()?;
         assert_eq!(
             repo.refs.loose_iter()?.count(),
             1,
             "HEAD is the only remaining loose symbolic ref as born remote symrefs are stored peeled"
         );
         assert_eq!(
-            packed_refs.iter()?.count(),
+            refs.into_iter().filter(|r| r.name().as_bstr() != "HEAD").count(),
             15,
             "all non-symbolic refs should be stored, if reachable from our refs"
         );

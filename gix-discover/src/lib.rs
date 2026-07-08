@@ -67,6 +67,8 @@ pub mod is_git {
         Inconclusive,
         #[error("Could not obtain current directory for resolving the '.' repository path")]
         CurrentDir(#[from] std::io::Error),
+        #[error("Could not open reference store: {0}")]
+        ReferenceStore(#[from] gix_ref::store::StoreError),
     }
 }
 
