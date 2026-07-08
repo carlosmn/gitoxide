@@ -2,7 +2,6 @@
 #![allow(clippy::empty_docs)]
 
 use gix_path::RelativePath;
-use gix_ref::file::ReferenceExt;
 
 /// A platform to create iterators over references.
 #[must_use = "Iterators should be obtained from this iterator platform"]
@@ -15,7 +14,6 @@ pub struct Platform<'r> {
 /// An iterator over references, with or without filter.
 pub struct Iter<'packed, 'repo> {
     inner: gix_ref::iter::References<'packed, 'repo>,
-    peel_with_packed: Option<gix_ref::file::packed::SharedBufferSnapshot>,
     peel: bool,
     repo: &'repo crate::Repository,
 }
@@ -24,7 +22,6 @@ impl<'packed, 'repo> Iter<'packed, 'repo> {
     fn new(repo: &'repo crate::Repository, platform: gix_ref::iter::References<'packed, 'repo>) -> Self {
         Iter {
             inner: platform,
-            peel_with_packed: None,
             peel: false,
             repo,
         }
@@ -97,13 +94,6 @@ impl Iter<'_, '_> {
     /// Doing this is necessary as the packed-refs buffer is already held by the iterator, disallowing the consumer of the iterator
     /// to peel the returned references themselves.
     pub fn peeled(mut self) -> Result<Self, gix_ref::open::Error> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("peeling currently requires a file-backed reference store");
-
-        self.peel_with_packed = store.cached_packed_buffer()?;
         self.peel = true;
         Ok(self)
     }
@@ -115,21 +105,14 @@ impl<'r> Iterator for Iter<'_, 'r> {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|res| {
             res.map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send + Sync + 'static>)
-                .and_then(|mut r| {
+                .and_then(|r| {
+                    let mut r = crate::Reference::from_ref(r, self.repo);
                     if self.peel {
-                        let repo = &self.repo;
-                        let store = repo
-                            .refs
-                            .as_file()
-                            .expect("peeled iteration currently requires a file-backed reference store");
-                        r.peel_to_id(store, &repo.objects)
-                            .map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send + Sync + 'static>)
-                            .map(|_| r)
-                    } else {
-                        Ok(r)
+                        r.peel_to_id()
+                            .map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
                     }
+                    Ok(r)
                 })
-                .map(|r| crate::Reference::from_ref(r, self.repo))
         })
     }
 }

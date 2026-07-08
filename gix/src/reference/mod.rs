@@ -122,8 +122,8 @@ impl<'repo> Reference<'repo> {
             .refs
             .as_file()
             .expect("peeling references currently requires a file-backed reference store");
-        let oid = self.inner.peel_to_id(store, &self.repo.objects)?;
-        Ok(Id::from_id(oid, self.repo))
+        let packed = store.cached_packed_buffer()?;
+        self.peel_to_id_packed(packed.as_ref().map(|p| &***p))
     }
 
     /// Follow all symbolic targets this reference might point to and peel all annotated tags
