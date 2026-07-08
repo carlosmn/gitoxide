@@ -220,10 +220,10 @@ impl ThreadSafeRepository {
         };
 
         let mut refs = {
-            let _ref_storage = repo_config.ref_storage;
             let reflog = repo_config.reflog.unwrap_or(gix_ref::store::WriteReflog::Disable);
             let object_hash = repo_config.object_hash;
             let ref_store_init_opts = gix_ref::store::init::Options {
+                ref_storage: repo_config.ref_storage,
                 write_reflog: reflog,
                 object_hash,
                 precompose_unicode: repo_config.precompose_unicode,

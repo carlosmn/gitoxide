@@ -97,8 +97,11 @@ fn non_bare_reftable() -> crate::Result {
             eprintln!("Fixture script failure ignored as it looks like Git isn't recent enough.");
             return Ok(());
         }
+        #[cfg(not(feature = "reftable"))]
+        Err(gix::open::Error::ReferenceStore(_)) => return Ok(()),
         Err(err) => panic!("{err}"),
     };
+
     assert!(
         repo.head_id().is_err(),
         "Trying to do anything with head will fail as we don't support reftables yet"

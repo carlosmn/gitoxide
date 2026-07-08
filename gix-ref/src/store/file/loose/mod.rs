@@ -39,6 +39,7 @@ mod init {
         pub fn at(
             git_dir: PathBuf,
             crate::store::init::Options {
+                ref_storage: _,
                 write_reflog,
                 object_hash,
                 precompose_unicode,
@@ -67,6 +68,7 @@ mod init {
             git_dir: PathBuf,
             common_dir: PathBuf,
             crate::store::init::Options {
+                ref_storage: _,
                 write_reflog,
                 object_hash,
                 precompose_unicode,

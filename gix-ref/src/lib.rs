@@ -62,6 +62,8 @@ pub mod store {
         /// Options for use during [initialization](crate::file::Store::at).
         #[derive(Debug, Copy, Clone, Default)]
         pub struct Options {
+            /// The storage backend to use for references.
+            pub ref_storage: super::RefStorage,
             /// How to write the ref-log.
             pub write_reflog: super::WriteReflog,
             /// The kind of hash to expect in

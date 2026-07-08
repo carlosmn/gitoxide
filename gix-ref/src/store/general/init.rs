@@ -7,12 +7,15 @@ mod error {
     pub enum Error {
         #[error("There was an error accessing the store's directory")]
         Io(#[from] std::io::Error),
+        #[cfg(not(feature = "reftable"))]
+        #[error("Unsupported reference storage configured for this store: {0}")]
+        UnsupportedRefStorage(crate::store::RefStorage),
     }
 }
 
 pub use error::Error;
 
-use crate::file;
+use crate::{file, store::RefStorage};
 
 #[allow(dead_code)]
 impl crate::Store {
@@ -24,10 +27,26 @@ impl crate::Store {
     pub fn at(git_dir: PathBuf, opts: crate::store::init::Options) -> Result<Self, Error> {
         // for now, just try to read the directory - later we will do that naturally as we have to figure out if it's a ref-table or not.
         std::fs::read_dir(&git_dir)?;
-        Ok(crate::Store {
-            inner: crate::store::State::Loose {
-                store: file::Store::at(git_dir, opts),
-            },
-        })
+        match opts.ref_storage {
+            RefStorage::Files => Ok(crate::Store {
+                inner: crate::store::State::Loose {
+                    store: file::Store::at(git_dir, opts),
+                },
+            }),
+            RefStorage::Reftable => {
+                #[cfg(feature = "reftable")]
+                {
+                    Ok(crate::Store {
+                        inner: crate::store::State::Reftable {
+                            store: crate::reftable::Store::at(git_dir, opts),
+                        },
+                    })
+                }
+                #[cfg(not(feature = "reftable"))]
+                {
+                    Err(Error::UnsupportedRefStorage(RefStorage::Reftable))
+                }
+            }
+        }
     }
 }

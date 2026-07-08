@@ -115,6 +115,7 @@ fn write_refs(
     let store = gix::RefStore::at(
         directory,
         gix::refs::store::init::Options {
+            ref_storage: gix::refs::store::RefStorage::Files,
             write_reflog: if write_reflog {
                 gix::refs::store::WriteReflog::Always
             } else {
