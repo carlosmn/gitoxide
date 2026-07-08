@@ -1,6 +1,6 @@
 mod reflog {
     mod packed {
-        use gix_ref::file::ReferenceExt;
+        use gix_ref::ReferenceExt;
 
         use crate::file;
 

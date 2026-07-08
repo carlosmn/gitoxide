@@ -1,7 +1,7 @@
 //!
 #![allow(clippy::empty_docs)]
 
-use gix_ref::file::ReferenceExt;
+use gix_ref::ReferenceExt;
 
 use crate::{Blob, Commit, Id, Object, Reference, Tag, Tree};
 
@@ -83,12 +83,7 @@ impl<'repo> Reference<'repo> {
     /// the chain of symbolic refs and annotated tags.
     #[deprecated = "Use `peel_to_id()` instead"]
     pub fn peel_to_id_in_place(&mut self) -> Result<Id<'repo>, peel::Error> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("peeling references currently requires a file-backed reference store");
-        let oid = self.inner.peel_to_id(store, &self.repo.objects)?;
+        let oid = self.inner.peel_to_id(&self.repo.refs, &self.repo.objects)?;
         Ok(Id::from_id(oid, self.repo))
     }
 
@@ -136,12 +131,9 @@ impl<'repo> Reference<'repo> {
         &mut self,
         packed: Option<&gix_ref::packed::Buffer>,
     ) -> Result<Id<'repo>, peel::Error> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("peeling references currently requires a file-backed reference store");
-        let oid = self.inner.peel_to_id_packed(store, &self.repo.objects, packed)?;
+        let oid = self
+            .inner
+            .peel_to_id_packed(&self.repo.refs, &self.repo.objects, packed)?;
         Ok(Id::from_id(oid, self.repo))
     }
 
@@ -154,12 +146,9 @@ impl<'repo> Reference<'repo> {
     /// Note that this method mutates `self` in place if it does not already point to a
     /// non-symbolic object.
     pub fn peel_to_id_packed(&mut self, packed: Option<&gix_ref::packed::Buffer>) -> Result<Id<'repo>, peel::Error> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("peeling references currently requires a file-backed reference store");
-        let oid = self.inner.peel_to_id_packed(store, &self.repo.objects, packed)?;
+        let oid = self
+            .inner
+            .peel_to_id_packed(&self.repo.refs, &self.repo.objects, packed)?;
         Ok(Id::from_id(oid, self.repo))
     }
 
@@ -240,12 +229,10 @@ impl<'repo> Reference<'repo> {
         kind: gix_object::Kind,
         packed: Option<&gix_ref::packed::Buffer>,
     ) -> Result<Object<'repo>, peel::to_kind::Error> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("peeling references currently requires a file-backed reference store");
-        let target = self.inner.follow_to_object_packed(store, packed)?.attach(self.repo);
+        let target = self
+            .inner
+            .follow_to_object_packed(&self.repo.refs, packed)?
+            .attach(self.repo);
         Ok(target.object()?.peel_to_kind(kind)?)
     }
 
@@ -276,12 +263,10 @@ impl<'repo> Reference<'repo> {
         &mut self,
         packed: Option<&gix_ref::packed::Buffer>,
     ) -> Result<Id<'repo>, follow::to_object::Error> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("following references currently requires a file-backed reference store");
-        Ok(self.inner.follow_to_object_packed(store, packed)?.attach(self.repo))
+        Ok(self
+            .inner
+            .follow_to_object_packed(&self.repo.refs, packed)?
+            .attach(self.repo))
     }
 
     /// Follow this symbolic reference one level and return the ref it refers to.
@@ -301,12 +286,7 @@ impl<'repo> Reference<'repo> {
     /// # Ok(()) }
     /// ```
     pub fn follow(&self) -> Option<Result<Reference<'repo>, gix_ref::file::find::existing::Error>> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("following references currently requires a file-backed reference store");
-        self.inner.follow(store).map(|res| {
+        self.inner.follow(&self.repo.refs).map(|res| {
             res.map(|r| Reference {
                 inner: r,
                 repo: self.repo,

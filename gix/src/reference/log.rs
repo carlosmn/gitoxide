@@ -1,7 +1,7 @@
 //!
 #![allow(clippy::empty_docs)]
 use gix_object::commit::MessageRef;
-use gix_ref::file::ReferenceExt;
+use gix_ref::ReferenceExt;
 
 use crate::{
     Reference,
@@ -11,22 +11,12 @@ use crate::{
 impl Reference<'_> {
     /// Return a platform for obtaining iterators over reference logs.
     pub fn log_iter(&self) -> gix_ref::file::log::iter::Platform<'_, '_> {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("reference log iteration currently requires a file-backed reference store");
-        self.inner.log_iter(store)
+        self.inner.log_iter(&self.repo.refs)
     }
 
     /// Return true if a reflog is present for this reference.
     pub fn log_exists(&self) -> bool {
-        let store = self
-            .repo
-            .refs
-            .as_file()
-            .expect("reference log access currently requires a file-backed reference store");
-        self.inner.log_exists(store)
+        self.inner.log_exists(&self.repo.refs)
     }
 }
 

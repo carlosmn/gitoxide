@@ -44,6 +44,8 @@ pub mod transaction;
 mod parse;
 mod raw;
 
+/// Extension methods for [`Reference`] that operate with a [`Store`].
+pub use file::ReferenceExt;
 pub use raw::Reference;
 
 mod target;
@@ -195,7 +197,7 @@ pub enum Kind {
     Object,
     /// A ref that points to another reference, adding a level of indirection.
     ///
-    /// It can be resolved to an id using the [`peel_to_id()`][`crate::file::ReferenceExt::peel_to_id()`] method.
+    /// It can be resolved to an id using the [`peel_to_id()`][`crate::ReferenceExt::peel_to_id()`] method.
     Symbolic,
 }
 

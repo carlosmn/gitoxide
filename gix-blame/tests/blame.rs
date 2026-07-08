@@ -178,14 +178,11 @@ impl Fixture {
         )?;
 
         let mut reference = gix_ref::Store::find(&store, "HEAD")?;
-        let file_store = store
-            .as_file()
-            .expect("blame fixture currently requires file-backed refs");
 
         // Needed for `peel_to_id`.
-        use gix_ref::file::ReferenceExt;
+        use gix_ref::ReferenceExt;
 
-        let head_id = reference.peel_to_id(file_store, &odb)?;
+        let head_id = reference.peel_to_id(&store, &odb)?;
 
         let git_dir = worktree_path.join(".git");
         let index = gix_index::File::at(git_dir.join("index"), object_hash, false, Default::default())?;

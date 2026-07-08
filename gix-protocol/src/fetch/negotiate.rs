@@ -9,7 +9,7 @@ use std::borrow::Cow;
 
 use gix_date::SecondsSinceUnixEpoch;
 use gix_negotiate::Flags;
-use gix_ref::file::ReferenceExt;
+use gix_ref::ReferenceExt;
 
 use crate::fetch::{RefMap, Shallow, Tags, refmap};
 
@@ -371,12 +371,9 @@ fn mark_all_refs_in_repo(
     mark: Flags,
 ) -> Result<(), Error> {
     let _span = gix_trace::detail!("mark_all_refs");
-    let file_store = store
-        .as_file()
-        .expect("fetch negotiation currently requires a file-backed reference store");
     for local_ref in store.iter()?.all()? {
         let mut local_ref = local_ref?;
-        let id = local_ref.peel_to_id(file_store, objects)?;
+        let id = local_ref.peel_to_id(store, objects)?;
         let mut is_complete = false;
         if let Some(commit) = graph
             .get_or_insert_commit(id, |md| {
