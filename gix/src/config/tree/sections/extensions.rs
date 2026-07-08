@@ -11,10 +11,34 @@ impl Extensions {
         ObjectFormat::new_with_validate("objectFormat", &config::Tree::EXTENSIONS, validate::ObjectFormat).with_note(
             "Support for SHA256 is prepared but not fully implemented yet. For now we abort when encountered",
         );
+    /// The `extensions.refStorage` key.
+    pub const REF_STORAGE: RefStorage =
+        RefStorage::new_with_validate("refStorage", &config::Tree::EXTENSIONS, validate::RefStorage);
 }
 
 /// The `core.checkStat` key.
 pub type ObjectFormat = keys::Any<validate::ObjectFormat>;
+/// The `extensions.refStorage` key.
+pub type RefStorage = keys::Any<validate::RefStorage>;
+
+/// The storage backend used for references.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub enum RefStorageValue {
+    /// Keep references in loose files and `packed-refs`.
+    #[default]
+    Files,
+    /// Use reftable files for references.
+    Reftable,
+}
+
+impl From<RefStorageValue> for gix_ref::store::RefStorage {
+    fn from(value: RefStorageValue) -> Self {
+        match value {
+            RefStorageValue::Files => gix_ref::store::RefStorage::Files,
+            RefStorageValue::Reftable => gix_ref::store::RefStorage::Reftable,
+        }
+    }
+}
 
 mod object_format {
     use std::borrow::Cow;
@@ -41,13 +65,38 @@ mod object_format {
     }
 }
 
+mod ref_storage {
+    use std::borrow::Cow;
+
+    use crate::{
+        bstr::BStr,
+        config,
+        config::tree::sections::extensions::{RefStorage, RefStorageValue},
+    };
+
+    impl RefStorage {
+        pub fn try_into_ref_storage(
+            &'static self,
+            value: Cow<'_, BStr>,
+        ) -> Result<RefStorageValue, config::key::GenericErrorWithValue> {
+            if value.as_ref().eq_ignore_ascii_case(b"files") {
+                return Ok(RefStorageValue::Files);
+            }
+            if value.as_ref().eq_ignore_ascii_case(b"reftable") {
+                return Ok(RefStorageValue::Reftable);
+            }
+            Err(config::key::GenericErrorWithValue::from_value(self, value.into_owned()))
+        }
+    }
+}
+
 impl Section for Extensions {
     fn name(&self) -> &str {
         "extensions"
     }
 
     fn keys(&self) -> &[&dyn Key] {
-        &[&Self::OBJECT_FORMAT, &Self::WORKTREE_CONFIG]
+        &[&Self::OBJECT_FORMAT, &Self::REF_STORAGE, &Self::WORKTREE_CONFIG]
     }
 }
 
@@ -60,6 +109,16 @@ mod validate {
     impl keys::Validate for ObjectFormat {
         fn validate(&self, value: &BStr) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
             super::Extensions::OBJECT_FORMAT.try_into_object_format(value.into())?;
+            Ok(())
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct RefStorage;
+
+    impl keys::Validate for RefStorage {
+        fn validate(&self, value: &BStr) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+            super::Extensions::REF_STORAGE.try_into_ref_storage(value.into())?;
             Ok(())
         }
     }

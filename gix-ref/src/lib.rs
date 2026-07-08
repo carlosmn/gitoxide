@@ -74,6 +74,26 @@ pub mod store {
             pub prohibit_windows_device_names: bool,
         }
     }
+
+    /// The storage backend used for references.
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+    pub enum RefStorage {
+        /// Keep references in loose files and `packed-refs`.
+        #[default]
+        Files,
+        /// Use reftable files for references.
+        Reftable,
+    }
+
+    impl std::fmt::Display for RefStorage {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                RefStorage::Files => f.write_str("files"),
+                RefStorage::Reftable => f.write_str("reftable"),
+            }
+        }
+    }
+
     /// The way a file store handles the reflog
     #[derive(Default, Debug, PartialOrd, PartialEq, Ord, Eq, Hash, Clone, Copy)]
     pub enum WriteReflog {
