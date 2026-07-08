@@ -202,9 +202,9 @@ impl<'repo> Reference<'repo> {
     /// assert_eq!(branch.name().as_bstr(), "refs/heads/main");
     /// # Ok(()) }
     /// ```
-    pub fn follow(&self) -> Option<Result<Reference<'repo>, gix_ref::file::find::existing::Error>> {
+    pub fn follow(&self) -> Option<Result<Reference<'repo>, gix_ref::find::existing::Error>> {
         self.inner.follow(&self.repo.refs).map(|res| {
-            res.map(|r| Reference {
+            res.map_err(Into::into).map(|r| Reference {
                 inner: r,
                 repo: self.repo,
             })
