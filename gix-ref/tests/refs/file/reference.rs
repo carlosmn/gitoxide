@@ -168,7 +168,7 @@ mod peel {
             assert_eq!(obj.kind, gix_object::Kind::Commit, "always peeled to the first non-tag");
 
             let mut r: Reference = store.find("multi-hop")?;
-            let tag_id = r.follow_to_object_packed(&store, store.cached_packed_buffer()?.as_ref().map(|p| &***p))?;
+            let tag_id = r.follow_to_object(&store)?;
             let obj = odb.find(&tag_id, &mut buf)?;
             assert_eq!(obj.kind, gix_object::Kind::Tag, "the first direct object target");
             assert_eq!(
@@ -177,8 +177,7 @@ mod peel {
                 "this is the first annotated tag, which points at dt1"
             );
             let mut r: Reference = store.find("multi-hop2")?;
-            let other_tag_id =
-                r.follow_to_object_packed(&store, store.cached_packed_buffer()?.as_ref().map(|p| &***p))?;
+            let other_tag_id = r.follow_to_object(&store)?;
             assert_eq!(other_tag_id, tag_id, "it can follow with multiple hops as well");
         }
         Ok(())
@@ -198,9 +197,7 @@ mod peel {
         assert_eq!(r.name.as_bstr(), "refs/loop-a", "the ref is not changed on error");
 
         let mut r: Reference = store.find_loose("loop-a")?.into();
-        let err = r
-            .follow_to_object_packed(&store, store.cached_packed_buffer()?.as_ref().map(|p| &***p))
-            .unwrap_err();
+        let err = r.follow_to_object(&store).unwrap_err();
         assert!(matches!(err, gix_ref::peel::to_object::Error::Cycle { .. }));
         Ok(())
     }

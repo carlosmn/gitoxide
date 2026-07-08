@@ -21,7 +21,7 @@ pub mod to_object {
 
     use crate::file;
 
-    /// The error returned by [`crate::ReferenceExt::follow_to_object_packed()`].
+    /// The error returned by [`crate::ReferenceExt::follow_to_object()`].
     #[derive(Debug, thiserror::Error)]
     #[allow(missing_docs)]
     pub enum Error {

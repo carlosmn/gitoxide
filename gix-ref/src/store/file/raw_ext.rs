@@ -57,56 +57,14 @@ pub trait ReferenceExt: Sealed {
         objects: &dyn gix_object::Find,
     ) -> Result<ObjectId, peel::to_id::Error>;
 
-    /// Like [`ReferenceExt::peel_to_id_in_place()`], but with support for a known stable `packed` buffer
-    /// to use for resolving symbolic links.
-    #[deprecated = "Use `peel_to_id_packed()` instead"]
-    fn peel_to_id_in_place_packed(
-        &mut self,
-        store: &crate::Store,
-        objects: &dyn gix_object::Find,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_id::Error>;
-
-    /// Like [`ReferenceExt::peel_to_id()`], but with support for a known stable `packed` buffer to
-    /// use for resolving symbolic links.
-    fn peel_to_id_packed(
-        &mut self,
-        store: &crate::Store,
-        objects: &dyn gix_object::Find,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_id::Error>;
-
     /// Like [`ReferenceExt::follow()`], but follows all symbolic references while gracefully handling loops,
     /// altering this instance in place.
-    #[deprecated = "Use `follow_to_object_packed()` instead"]
-    fn follow_to_object_in_place_packed(
-        &mut self,
-        store: &crate::Store,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_object::Error>;
-
-    /// Like [`ReferenceExt::follow()`], but follows all symbolic references while gracefully handling loops,
-    /// altering this instance in place.
-    fn follow_to_object_packed(
-        &mut self,
-        store: &crate::Store,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_object::Error>;
+    fn follow_to_object(&mut self, store: &crate::Store) -> Result<ObjectId, peel::to_object::Error>;
 
     /// Follow this symbolic reference one level and return the ref it refers to.
     ///
     /// Returns `None` if this is not a symbolic reference, hence the leaf of the chain.
     fn follow(&self, store: &crate::Store) -> Option<Result<Reference, file::find::existing::Error>>;
-
-    /// Follow this symbolic reference one level and return the ref it refers to,
-    /// possibly providing access to `packed` references for lookup if it contains the referent.
-    ///
-    /// Returns `None` if this is not a symbolic reference, hence the leaf of the chain.
-    fn follow_packed(
-        &self,
-        store: &crate::Store,
-        packed: Option<&packed::Buffer>,
-    ) -> Option<Result<Reference, file::find::existing::Error>>;
 }
 
 impl ReferenceExt for Reference {
@@ -139,38 +97,13 @@ impl ReferenceExt for Reference {
         store: &crate::Store,
         objects: &dyn gix_object::Find,
     ) -> Result<ObjectId, peel::to_id::Error> {
-        let file_store = file_store(store);
-        let packed = file_store.assure_packed_refs_uptodate().map_err(|err| {
-            peel::to_id::Error::FollowToObject(peel::to_object::Error::Follow(file::find::existing::Error::Find(
-                file::find::Error::PackedOpen(err),
-            )))
-        })?;
-        self.peel_to_id_packed(store, objects, packed.as_ref().map(|b| &***b))
-    }
-
-    fn peel_to_id_in_place_packed(
-        &mut self,
-        store: &crate::Store,
-        objects: &dyn gix_object::Find,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_id::Error> {
-        self.peel_to_id_packed(store, objects, packed)
-    }
-
-    fn peel_to_id_packed(
-        &mut self,
-        store: &crate::Store,
-        objects: &dyn gix_object::Find,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_id::Error> {
-        let _file_store = file_store(store);
         match self.peeled {
             Some(peeled) => {
                 self.target = Target::Object(peeled.to_owned());
                 Ok(peeled)
             }
             None => {
-                let mut oid = self.follow_to_object_packed(store, packed)?;
+                let mut oid = self.follow_to_object(store)?;
                 let mut buf = Vec::new();
                 let peeled_id = loop {
                     let gix_object::Data {
@@ -202,26 +135,18 @@ impl ReferenceExt for Reference {
         }
     }
 
-    fn follow_to_object_in_place_packed(
-        &mut self,
-        store: &crate::Store,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_object::Error> {
-        self.follow_to_object_packed(store, packed)
-    }
-
-    fn follow_to_object_packed(
-        &mut self,
-        store: &crate::Store,
-        packed: Option<&packed::Buffer>,
-    ) -> Result<ObjectId, peel::to_object::Error> {
+    fn follow_to_object(&mut self, store: &crate::Store) -> Result<ObjectId, peel::to_object::Error> {
         let file_store = file_store(store);
+        let packed = file_store.assure_packed_refs_uptodate().map_err(|err| {
+            peel::to_object::Error::Follow(file::find::existing::Error::Find(file::find::Error::PackedOpen(err)))
+        })?;
+        let packed = packed.as_ref().map(|b| &***b);
         match self.target {
             Target::Object(id) => Ok(id),
             Target::Symbolic(_) => {
                 let mut seen = BTreeSet::new();
                 let cursor = &mut *self;
-                while let Some(next) = cursor.follow_packed(store, packed) {
+                while let Some(next) = follow_packed(cursor, file_store, packed) {
                     let next = next?;
                     if seen.contains(&next.name) {
                         return Err(peel::to_object::Error::Cycle {
@@ -252,24 +177,23 @@ impl ReferenceExt for Reference {
             Ok(packed) => packed,
             Err(err) => return Some(Err(err)),
         };
-        self.follow_packed(store, packed.as_ref().map(|b| &***b))
+        follow_packed(self, file_store, packed.as_ref().map(|b| &***b))
     }
+}
 
-    fn follow_packed(
-        &self,
-        store: &crate::Store,
-        packed: Option<&packed::Buffer>,
-    ) -> Option<Result<Reference, file::find::existing::Error>> {
-        let file_store = file_store(store);
-        match &self.target {
-            Target::Object(_) => None,
-            Target::Symbolic(full_name) => match file_store.try_find_packed(full_name.as_ref(), packed) {
-                Ok(Some(next)) => Some(Ok(next)),
-                Ok(None) => Some(Err(file::find::existing::Error::NotFound {
-                    name: full_name.to_path().to_owned(),
-                })),
-                Err(err) => Some(Err(file::find::existing::Error::Find(err))),
-            },
-        }
+fn follow_packed(
+    reference: &Reference,
+    store: &file::Store,
+    packed: Option<&packed::Buffer>,
+) -> Option<Result<Reference, file::find::existing::Error>> {
+    match &reference.target {
+        Target::Object(_) => None,
+        Target::Symbolic(full_name) => match store.try_find_packed(full_name.as_ref(), packed) {
+            Ok(Some(next)) => Some(Ok(next)),
+            Ok(None) => Some(Err(file::find::existing::Error::NotFound {
+                name: full_name.to_path().to_owned(),
+            })),
+            Err(err) => Some(Err(file::find::existing::Error::Find(err))),
+        },
     }
 }
