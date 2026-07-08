@@ -74,10 +74,9 @@ pub(crate) fn git_with_metadata(
                     });
                 }
             }
-            Err(gix_ref::file::find::existing::Error::Find(gix_ref::file::find::Error::ReferenceCreation {
-                source: _,
-                relative_path,
-            })) if relative_path == Path::new("HEAD") => {
+            Err(gix_ref::find::existing::Error::Find(gix_ref::find::Error::ReferenceCreation { relative_path }))
+                if relative_path == Path::new("HEAD") =>
+            {
                 // It's fine as long as the reference is found is `HEAD`.
             }
             Err(err) => {

@@ -8,9 +8,9 @@ pub mod edit {
     #[allow(missing_docs)]
     pub enum Error {
         #[error(transparent)]
-        FileTransactionPrepare(#[from] gix_ref::file::transaction::prepare::Error),
+        TransactionPrepare(#[from] gix_ref::transaction::prepare::Error),
         #[error(transparent)]
-        FileTransactionCommit(#[from] gix_ref::file::transaction::commit::Error),
+        TransactionCommit(#[from] gix_ref::transaction::commit::Error),
         #[error(transparent)]
         NameValidation(#[from] gix_validate::reference::name::Error),
         #[error(
@@ -143,6 +143,6 @@ pub mod find {
     #[allow(missing_docs)]
     pub enum Error {
         #[error(transparent)]
-        Find(#[from] gix_ref::file::find::Error),
+        Find(#[from] gix_ref::find::Error),
     }
 }

@@ -54,6 +54,9 @@ pub mod log;
 ///
 pub mod peel;
 
+/// Errors that can come from trying to find references
+pub use store::find;
+
 ///
 pub mod store {
     ///

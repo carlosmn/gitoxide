@@ -320,14 +320,14 @@ impl crate::Repository {
     pub fn find_reference<'a, Name, E>(&self, name: Name) -> Result<Reference<'_>, reference::find::existing::Error>
     where
         Name: TryInto<&'a PartialNameRef, Error = E> + Clone,
-        gix_ref::file::find::Error: From<E>,
+        gix_ref::find::Error: From<E>,
     {
         // TODO: is there a way to just pass `partial_name` to `try_find_reference()`? Compiler freaks out then
         //       as it still wants to see `E` there, not `Infallible`.
         let partial_name = name
             .clone()
             .try_into()
-            .map_err(|err| reference::find::Error::Find(gix_ref::file::find::Error::from(err)))?;
+            .map_err(|err| reference::find::Error::Find(gix_ref::find::Error::from(err)))?;
         self.try_find_reference(name)?
             .ok_or_else(|| reference::find::existing::Error::NotFound {
                 name: partial_name.to_owned(),
@@ -368,7 +368,7 @@ impl crate::Repository {
     pub fn try_find_reference<'a, Name, E>(&self, name: Name) -> Result<Option<Reference<'_>>, reference::find::Error>
     where
         Name: TryInto<&'a PartialNameRef, Error = E>,
-        gix_ref::file::find::Error: From<E>,
+        gix_ref::find::Error: From<E>,
     {
         match self.refs.try_find(name) {
             Ok(r) => match r {

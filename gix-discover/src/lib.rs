@@ -46,7 +46,7 @@ pub mod is_git {
     #[allow(missing_docs)]
     pub enum Error {
         #[error("Could not find a valid HEAD reference")]
-        FindHeadRef(#[from] gix_ref::file::find::existing::Error),
+        FindHeadRef(#[from] gix_ref::find::existing::Error),
         #[error("Missing HEAD at '.git/HEAD'")]
         MissingHead,
         #[error("Expected HEAD at '.git/HEAD', got '.git/{}'", .name)]

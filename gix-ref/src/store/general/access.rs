@@ -72,13 +72,13 @@ impl crate::Store {
     }
 
     /// Find a reference by `partial` name.
-    pub fn find<'a, Name, E>(&self, partial: Name) -> Result<crate::Reference, crate::file::find::existing::Error>
+    pub fn find<'a, Name, E>(&self, partial: Name) -> Result<crate::Reference, crate::find::existing::Error>
     where
         Name: TryInto<&'a crate::PartialNameRef, Error = E>,
         crate::name::Error: From<E>,
     {
         match &self.inner {
-            store::State::Loose { store } => store.find(partial),
+            store::State::Loose { store } => store.find(partial).map_err(Into::into),
             #[cfg(feature = "reftable")]
             store::State::Reftable { .. } => {
                 todo!("find for reftable stores")
@@ -87,13 +87,14 @@ impl crate::Store {
     }
 
     /// Try to find a reference by `partial` name.
-    pub fn try_find<'a, Name, E>(&self, partial: Name) -> Result<Option<crate::Reference>, crate::file::find::Error>
+    pub fn try_find<'a, Name, E>(&self, partial: Name) -> Result<Option<crate::Reference>, crate::find::Error>
     where
         Name: TryInto<&'a crate::PartialNameRef, Error = E>,
-        crate::file::find::Error: From<E>,
+        crate::find::Error: From<E>,
     {
+        let partial = partial.try_into()?;
         match &self.inner {
-            store::State::Loose { store } => store.try_find(partial),
+            store::State::Loose { store } => store.try_find(partial).map_err(Into::into),
             #[cfg(feature = "reftable")]
             store::State::Reftable { .. } => {
                 todo!("try_find for reftable stores")
