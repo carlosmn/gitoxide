@@ -24,11 +24,11 @@ pub enum Error {
     #[error(transparent)]
     LookupCommitInGraph(#[from] gix_revwalk::graph::get_or_insert_default::Error),
     #[error(transparent)]
-    OpenPackedRefsBuffer(#[from] gix_ref::packed::buffer::open::Error),
+    Open(#[from] gix_ref::open::Error),
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
-    InitRefIter(#[from] gix_ref::file::iter::loose_then_packed::Error),
+    InitRefIter(#[from] gix_ref::iter::Error),
     #[error(transparent)]
     PeelToId(#[from] gix_ref::peel::to_id::Error),
     #[error(transparent)]

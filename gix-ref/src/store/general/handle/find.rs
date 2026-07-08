@@ -17,7 +17,7 @@ mod error {
         #[error("A packed ref lookup failed")]
         PackedRef(#[from] crate::packed::find::Error),
         #[error("Could not open the packed refs buffer when trying to find references")]
-        PackedOpen(#[from] crate::packed::buffer::open::Error),
+        PackedOpen(#[from] crate::open::Error),
     }
 
     impl From<crate::file::find::Error> for Error {

@@ -32,7 +32,7 @@ pub mod peel {
         #[error(transparent)]
         ToId(#[from] gix_ref::peel::to_id::Error),
         #[error(transparent)]
-        PackedRefsOpen(#[from] gix_ref::packed::buffer::open::Error),
+        PackedRefsOpen(#[from] gix_ref::open::Error),
     }
 
     ///
@@ -44,7 +44,7 @@ pub mod peel {
             #[error(transparent)]
             FollowToObject(#[from] gix_ref::peel::to_object::Error),
             #[error(transparent)]
-            PackedRefsOpen(#[from] gix_ref::packed::buffer::open::Error),
+            PackedRefsOpen(#[from] gix_ref::open::Error),
             #[error(transparent)]
             FindObject(#[from] crate::object::find::existing::Error),
             #[error(transparent)]
@@ -64,7 +64,7 @@ pub mod follow {
             #[error(transparent)]
             FollowToObject(#[from] gix_ref::peel::to_object::Error),
             #[error(transparent)]
-            PackedRefsOpen(#[from] gix_ref::packed::buffer::open::Error),
+            PackedRefsOpen(#[from] gix_ref::open::Error),
         }
     }
 }

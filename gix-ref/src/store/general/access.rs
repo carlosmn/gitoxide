@@ -103,13 +103,11 @@ impl crate::Store {
     }
 
     /// Return an iterator platform for references.
-    pub fn iter(&self) -> Result<crate::file::iter::Platform<'_>, crate::packed::buffer::open::Error> {
+    pub fn iter(&self) -> Result<crate::iter::Platform<'_>, crate::open::Error> {
         match &self.inner {
-            store::State::Loose { store } => store.iter(),
+            store::State::Loose { store } => store.iter().map(crate::iter::Platform::from_file),
             #[cfg(feature = "reftable")]
-            store::State::Reftable { .. } => {
-                todo!("iter for reftable stores")
-            }
+            store::State::Reftable { store } => Ok(crate::iter::Platform::from_reftable(store)),
         }
     }
 

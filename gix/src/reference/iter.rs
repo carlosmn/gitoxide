@@ -7,21 +7,21 @@ use gix_ref::file::ReferenceExt;
 /// A platform to create iterators over references.
 #[must_use = "Iterators should be obtained from this iterator platform"]
 pub struct Platform<'r> {
-    pub(crate) platform: gix_ref::file::iter::Platform<'r>,
+    pub(crate) platform: gix_ref::iter::Platform<'r>,
     /// The owning repository.
     pub repo: &'r crate::Repository,
 }
 
 /// An iterator over references, with or without filter.
 pub struct Iter<'packed, 'repo> {
-    inner: gix_ref::file::iter::LooseThenPacked<'packed, 'repo>,
+    inner: gix_ref::iter::References<'packed, 'repo>,
     peel_with_packed: Option<gix_ref::file::packed::SharedBufferSnapshot>,
     peel: bool,
     repo: &'repo crate::Repository,
 }
 
 impl<'packed, 'repo> Iter<'packed, 'repo> {
-    fn new(repo: &'repo crate::Repository, platform: gix_ref::file::iter::LooseThenPacked<'packed, 'repo>) -> Self {
+    fn new(repo: &'repo crate::Repository, platform: gix_ref::iter::References<'packed, 'repo>) -> Self {
         Iter {
             inner: platform,
             peel_with_packed: None,
@@ -96,7 +96,7 @@ impl Iter<'_, '_> {
     ///
     /// Doing this is necessary as the packed-refs buffer is already held by the iterator, disallowing the consumer of the iterator
     /// to peel the returned references themselves.
-    pub fn peeled(mut self) -> Result<Self, gix_ref::packed::buffer::open::Error> {
+    pub fn peeled(mut self) -> Result<Self, gix_ref::open::Error> {
         let store = self
             .repo
             .refs
@@ -148,4 +148,4 @@ pub mod init {
 }
 
 /// The error returned by [references()][crate::Repository::references()].
-pub type Error = gix_ref::packed::buffer::open::Error;
+pub type Error = gix_ref::open::Error;

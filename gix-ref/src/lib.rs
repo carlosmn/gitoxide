@@ -51,11 +51,20 @@ mod target;
 ///
 pub mod log;
 
+/// Backend-agnostic reference iteration APIs.
+pub mod iter;
+
 ///
 pub mod peel;
 
 /// Errors that can come from trying to find references
 pub use store::find;
+
+/// Errors related to opening packed refs snapshots used by higher-level APIs.
+pub mod open {
+    /// The error returned when opening packed refs buffers/snapshots fails.
+    pub type Error = crate::packed::buffer::open::Error;
+}
 
 ///
 pub mod store {
