@@ -8,8 +8,9 @@ use super::{BlockType, Error, Iter, Result};
 
 use bytes::Buf;
 
+use gix_features::threading::OwnShared;
+
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 /// Return the header size for the given version
 fn header_size(version: u8) -> u32 {
@@ -209,7 +210,7 @@ impl Table {
 /// Iterator over a table
 #[derive(Clone)]
 pub struct TableIter {
-    table: Rc<Table>,
+    table: OwnShared<Table>,
     typ: Option<BlockType>,
     block_off: u64,
     bi: BlockIter,
@@ -217,7 +218,7 @@ pub struct TableIter {
 }
 
 impl TableIter {
-    pub fn new(table: Rc<Table>, typ: BlockType) -> Self {
+    pub fn new(table: OwnShared<Table>, typ: BlockType) -> Self {
         // If there is nothing for this type then we mark it as finished
         // immediately
         let is_finished = table.offsets_for(typ).is_none();

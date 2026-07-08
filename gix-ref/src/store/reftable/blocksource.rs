@@ -8,7 +8,7 @@ pub use buffer::BufferSource;
 pub use file::FileSource;
 
 /// Interface implemented by any kind of source
-pub(crate) trait Source {
+pub(crate) trait Source: Send + Sync {
     /// Read from the source at the specified offset
     fn read(&self, offset: u64, len: u32) -> Result<Bytes>;
     /// Total size of the source

@@ -1,12 +1,10 @@
-use std::{
-    cell::RefCell,
-    path::{Path, PathBuf},
-    rc::Rc,
-};
+use std::path::{Path, PathBuf};
+
+use gix_features::threading::{Mutable, OwnShared};
 
 use crate::{Namespace, store::WriteReflog};
 
-use super::{Result, stack};
+use super::stack;
 
 /// A store for references persisted in git's reftable format.
 #[derive(Clone)]
@@ -22,7 +20,7 @@ pub struct Store {
     /// The namespace to use for reads and edits.
     pub namespace: Option<Namespace>,
     /// A cached stack that we should be able to refresh and update as necessary
-    stack: Option<Rc<RefCell<stack::Stack>>>,
+    stack: Option<OwnShared<Mutable<stack::Stack>>>,
 }
 
 impl Store {

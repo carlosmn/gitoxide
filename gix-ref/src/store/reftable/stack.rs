@@ -3,11 +3,12 @@ use super::merged::MergedTable;
 use super::table::Table;
 use super::{Error, Result};
 
+use gix_features::threading::OwnShared;
+
 use std::fs::{File, Metadata};
 use std::io::{BufRead, BufReader, ErrorKind};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 /// Options for how the reftable code should behave
@@ -40,7 +41,7 @@ pub struct Stack {
     file_md: Option<Metadata>,
     reftable_dir: PathBuf,
     opts: Options,
-    tables: Vec<Rc<Table>>,
+    tables: Vec<OwnShared<Table>>,
     merged: Option<MergedTable>,
 }
 
@@ -177,7 +178,7 @@ impl Stack {
                         Err(_) => return Err(Error::IoError),
                     };
                     let t = Table::new(Box::new(source), name.into())?;
-                    new_tables.push(Rc::new(t));
+                    new_tables.push(OwnShared::new(t));
                 }
             }
         }
