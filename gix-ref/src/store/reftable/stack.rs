@@ -18,6 +18,14 @@ pub struct Options {
     hash_id: gix_hash::Kind,
 }
 
+impl Options {
+    pub fn from_init_options(opts: crate::store::init::Options) -> Self {
+        Self {
+            hash_id: opts.object_hash,
+        }
+    }
+}
+
 impl Default for Options {
     fn default() -> Self {
         Self {

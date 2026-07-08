@@ -3,9 +3,11 @@ mod blocksource;
 mod merged;
 mod record;
 mod stack;
+mod store;
 mod table;
 
 use record::Record;
+pub use store::Store;
 
 use std::cmp::Ordering;
 
@@ -56,20 +58,28 @@ impl PartialEq<BlockType> for u8 {
     }
 }
 
+/// Errors that can come from using reftables
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// General IO or system issues
     #[error("unexpected file system behavior")]
     IoError,
+    /// The table file contains invalid data
     #[error("format inconsistency on reading data")]
     FormatError,
+    /// The requested and actual block type are not the same
     #[error("mismatched block type")]
     MismatchedBlockType,
+    /// The offset calculated is beyond our block of memory
     #[error("invalid offset")]
     InvalidOffset,
+    /// An error trying to run the iterator (might want to remove it)
     #[error("there was an error in an iterator")]
     Iterator,
+    /// Improer use of the API, e.g. mixing up block types
     #[error("improper use of the API")]
     Api,
+    /// Reftable file was not found while looking it up
     #[error("a reftable file does not exist")]
     NotExist,
 }

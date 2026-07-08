@@ -36,6 +36,10 @@ impl store::Handle {
             handle::State::Loose { store: _, .. } => {
                 todo!()
             }
+            #[cfg(feature = "reftable")]
+            handle::State::Reftable { store: _, .. } => {
+                todo!()
+            }
         }
     }
 }

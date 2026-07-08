@@ -29,6 +29,8 @@ use gix_object::bstr::{BStr, BString};
 
 #[path = "store/mod.rs"]
 mod store_impl;
+#[cfg(feature = "reftable")]
+pub use store_impl::reftable;
 pub use store_impl::{file, packed};
 
 mod fullname;
@@ -95,7 +97,13 @@ pub mod store {
 
     #[allow(dead_code)]
     pub(crate) enum State {
-        Loose { store: file::Store },
+        Loose {
+            store: file::Store,
+        },
+        #[cfg(feature = "reftable")]
+        Reftable {
+            store: reftable::Store,
+        },
     }
 
     pub(crate) mod general;
@@ -106,6 +114,8 @@ pub mod store {
     pub use handle::find;
 
     use crate::file;
+    #[cfg(feature = "reftable")]
+    use crate::reftable;
 }
 
 /// The git reference store.

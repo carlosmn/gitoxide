@@ -3,7 +3,13 @@ use crate::{Namespace, store};
 
 #[derive(Clone)]
 pub(crate) enum State {
-    Loose { store: crate::file::Store },
+    Loose {
+        store: crate::file::Store,
+    },
+    #[cfg(feature = "reftable")]
+    Reftable {
+        store: crate::reftable::Store,
+    },
 }
 
 impl crate::Store {
@@ -22,6 +28,14 @@ impl crate::Store {
         store::Handle {
             state: match state {
                 store::State::Loose { store } => store::handle::State::Loose {
+                    store: {
+                        let mut store = store.clone();
+                        store.namespace = namespace;
+                        store
+                    },
+                },
+                #[cfg(feature = "reftable")]
+                store::State::Reftable { store } => store::handle::State::Reftable {
                     store: {
                         let mut store = store.clone();
                         store.namespace = namespace;
