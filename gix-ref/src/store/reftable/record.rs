@@ -308,9 +308,9 @@ impl PartialOrd for ObjRecord {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexRecord {
     /// Offset of block
-    offset: u64,
+    pub(crate) offset: u64,
     /// Last key of the block
-    last_key: Vec<u8>,
+    pub(crate) last_key: Vec<u8>,
 }
 
 impl IndexRecord {

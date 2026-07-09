@@ -2,7 +2,7 @@
 
 use super::block::{Block, BlockIter};
 use super::blocksource::Source;
-use super::record::Record;
+use super::record::{IndexRecord, Record};
 
 use super::{BlockType, Error, Iter, Result};
 
@@ -291,8 +291,62 @@ impl TableIter {
         self.seek_to(off, Some(typ))
     }
 
-    fn seek_indexed(&mut self, _want: &Record) -> Result<()> {
-        unimplemented!();
+    fn seek_indexed(&mut self, want: &Record) -> Result<()> {
+        let want_name = want.clone_key();
+        let want_index = Record::for_search(BlockType::Index, Some(want_name));
+        let mut index_result = Record::for_search(BlockType::Index, None);
+
+        // The index may consist of multiple levels, where each level may have
+        // multiple index blocks. We start by doing a linear search in the
+        // highest layer that identifies the relevant index block as well as
+        // the record inside that block that corresponds to our wanted key.
+        self.seek_linear(&want_index)?;
+
+        let want_name = match want_index {
+            Record::Index(IndexRecord { last_key, .. }) => last_key,
+            _ => unreachable!(),
+        };
+
+
+        // Traverse down the levels until we find a non-index entry.
+        loop {
+            // In case we seek a record that does not exist the index iter
+            // will tell us that the iterator is over. This works because
+            // the last index entry of the current level will contain the
+            // last key it knows about. So in case our seeked key is larger
+            // than the last indexed key we know that it won't exist.
+            //
+            // There is one subtlety in the layout of the index section
+            // that makes this work as expected: the highest-level index is
+            // at end of the section and will point backwards and thus we
+            // start reading from the end of the index section, not the
+            // beginning.
+            //
+            // If that wasn't the case and the order was reversed then the
+            // linear seek would seek into the lower levels and traverse
+            // all levels of the index only to find out that the key does
+            // not exist.
+            if !self.next(&mut index_result)? {
+                return Err(Error::Iterator);
+            }
+
+            let offset = match index_result {
+                Record::Index(IndexRecord { offset, .. }) => offset,
+                _ => unreachable!(),
+            };
+
+            self.seek_to(offset, None)?;
+            self.bi.seek_start();
+            self.bi.seek_key(&want_name)?;
+
+            if self.typ == Some(want.record_type()) {
+                return Ok(());
+            }
+
+            if self.typ != Some(BlockType::Index) {
+                return Err(Error::FormatError);
+            }
+        }
     }
 
     fn seek_linear(&mut self, want: &Record) -> Result<()> {
