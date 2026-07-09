@@ -1,7 +1,7 @@
 use super::blocksource::FileSource;
-use super::merged::MergedTable;
+use super::merged::{MergedIter, MergedTable};
 use super::table::Table;
-use super::{Error, Result};
+use super::{BlockType, Error, Result};
 
 use gix_features::threading::OwnShared;
 
@@ -194,6 +194,11 @@ impl Stack {
     /// Generate a path for the given reftable file
     fn filename_for(&self, name: &str) -> PathBuf {
         self.reftable_dir.join(name)
+    }
+
+    pub fn iter_refs(&self) -> MergedIter {
+        let merged = self.merged.as_ref().expect("we create it when we open");
+        MergedIter::from_merged(merged, BlockType::Ref)
     }
 }
 
