@@ -7,17 +7,19 @@ mod reflog {
         #[test]
         fn iter() -> crate::Result {
             let store = file::store_with_packed_refs()?;
+            let gstore = file::general_store_from(&store)?;
             let r = store.find("main")?;
-            assert_eq!(r.log_iter(&store).all()?.expect("log exists").count(), 1);
-            assert!(r.log_exists(&store), "it exists if its readable");
+            assert_eq!(r.log_iter(&gstore).all()?.expect("log exists").count(), 1);
+            assert!(r.log_exists(&gstore), "it exists if its readable");
             Ok(())
         }
 
         #[test]
         fn iter_rev() -> crate::Result {
             let store = file::store_with_packed_refs()?;
+            let gstore = file::general_store_from(&store)?;
             let r = store.find("main")?;
-            assert_eq!(r.log_iter(&store).rev()?.expect("log exists").count(), 1);
+            assert_eq!(r.log_iter(&gstore).rev()?.expect("log exists").count(), 1);
             Ok(())
         }
     }
@@ -59,15 +61,16 @@ mod peel {
     #[test]
     fn one_level() -> crate::Result {
         let store = file::store()?;
+        let gstore = file::general_store_from(&store)?;
         let r = store.find_loose("HEAD")?;
         assert_eq!(r.kind(), gix_ref::Kind::Symbolic, "there is something to peel");
 
-        let nr = Reference::from(r).follow(&store).expect("exists").expect("no failure");
+        let nr = Reference::from(r).follow(&gstore).expect("exists").expect("no failure");
         assert!(
             matches!(nr.target.to_ref(), gix_ref::TargetRef::Object(_)),
             "iteration peels a single level"
         );
-        assert!(nr.follow(&store).is_none(), "end of iteration");
+        assert!(nr.follow(&gstore).is_none(), "end of iteration");
         assert_eq!(
             nr.target.to_ref(),
             gix_ref::TargetRef::Object(&hex_to_id("134385f6d781b7e97062102c6a483440bfda2a03")),
@@ -79,13 +82,14 @@ mod peel {
     #[test]
     fn peel_with_packed_involvement() -> crate::Result {
         let store = store_with_packed_refs()?;
+        let gstore = file::general_store_from(&store)?;
         let mut head: Reference = store.find_loose("HEAD")?.into();
         let expected = hex_to_id("134385f6d781b7e97062102c6a483440bfda2a03");
-        assert_eq!(head.peel_to_id(&store, &EmptyCommit)?, expected);
+        assert_eq!(head.peel_to_id(&gstore, &EmptyCommit)?, expected);
         assert_eq!(head.target.try_id().map(ToOwned::to_owned), Some(expected));
 
         let mut head = store.find("dt1")?;
-        assert_eq!(head.peel_to_id(&store, &gix_object::find::Never)?, expected);
+        assert_eq!(head.peel_to_id(&gstore, &gix_object::find::Never)?, expected);
         assert_eq!(head.target.into_id(), expected);
         Ok(())
     }
@@ -93,6 +97,7 @@ mod peel {
     #[test]
     fn peel_one_level_with_pack() -> crate::Result {
         let store = store_with_packed_refs()?;
+        let gstore = file::general_store_from(&store)?;
 
         let mut head = store.find("dt1")?;
         assert_eq!(
@@ -108,12 +113,12 @@ mod peel {
         assert_eq!(head.peeled, Some(final_stop), "…it knows its peeled object");
 
         assert_eq!(
-            head.follow(&store).transpose()?,
+            head.follow(&gstore).transpose()?,
             None,
             "but following doesn't do that, only real peeling does"
         );
 
-        head.peel_to_id(&store, &EmptyCommit)?;
+        head.peel_to_id(&gstore, &EmptyCommit)?;
         assert_eq!(
             head.target.try_id().map(ToOwned::to_owned),
             Some(final_stop),
@@ -121,7 +126,7 @@ mod peel {
         );
         assert_eq!(head.kind(), gix_ref::Kind::Object, "it's terminally peeled now");
         assert_eq!(
-            head.follow(&store).transpose()?,
+            head.follow(&gstore).transpose()?,
             None,
             "following doesn't change anything"
         );
@@ -131,23 +136,24 @@ mod peel {
     #[test]
     fn to_id_multi_hop() -> crate::Result {
         let store = file::store()?;
+        let gstore = file::general_store_from(&store)?;
         let mut r: Reference = store.find_loose("multi-link")?.into();
         assert_eq!(r.kind(), gix_ref::Kind::Symbolic, "there is something to peel");
 
         let commit = hex_to_id("134385f6d781b7e97062102c6a483440bfda2a03");
-        assert_eq!(r.peel_to_id(&store, &EmptyCommit)?, commit);
+        assert_eq!(r.peel_to_id(&gstore, &EmptyCommit)?, commit);
         assert_eq!(r.name.as_bstr(), "refs/remotes/origin/multi-link-target3");
 
         let mut r: Reference = store.find_loose("dt1")?.into();
         assert_eq!(
-            r.peel_to_id(&store, &EmptyCommit)?,
+            r.peel_to_id(&gstore, &EmptyCommit)?,
             hex_to_id("4c3f4cce493d7beb45012e478021b5f65295e5a3"),
             "points to a tag object without actual object lookup"
         );
 
         let odb = crate::file::odb_at(store.git_dir().join("objects"))?;
         let mut r: Reference = store.find_loose("dt1")?.into();
-        assert_eq!(r.peel_to_id(&store, &odb)?, commit, "points to the commit with lookup");
+        assert_eq!(r.peel_to_id(&gstore, &odb)?, commit, "points to the commit with lookup");
 
         Ok(())
     }
@@ -156,9 +162,10 @@ mod peel {
     fn to_id_long_jump() -> crate::Result {
         for packed in [None, Some("packed")] {
             let store = file::store_at_with_args("make_multi_hop_ref.sh", packed)?;
+            let gstore = file::general_store_from(&store)?;
             let odb = crate::file::odb_at(store.git_dir().join("objects"))?;
             let mut r: Reference = store.find("multi-hop")?;
-            r.peel_to_id(&store, &odb)?;
+            r.peel_to_id(&gstore, &odb)?;
 
             let commit_id = hex_to_id("134385f6d781b7e97062102c6a483440bfda2a03");
             assert_eq!(r.peeled, Some(commit_id));
@@ -168,7 +175,7 @@ mod peel {
             assert_eq!(obj.kind, gix_object::Kind::Commit, "always peeled to the first non-tag");
 
             let mut r: Reference = store.find("multi-hop")?;
-            let tag_id = r.follow_to_object(&store)?;
+            let tag_id = r.follow_to_object(&gstore)?;
             let obj = odb.find(&tag_id, &mut buf)?;
             assert_eq!(obj.kind, gix_object::Kind::Tag, "the first direct object target");
             assert_eq!(
@@ -177,7 +184,7 @@ mod peel {
                 "this is the first annotated tag, which points at dt1"
             );
             let mut r: Reference = store.find("multi-hop2")?;
-            let other_tag_id = r.follow_to_object(&store)?;
+            let other_tag_id = r.follow_to_object(&gstore)?;
             assert_eq!(other_tag_id, tag_id, "it can follow with multiple hops as well");
         }
         Ok(())
@@ -186,18 +193,19 @@ mod peel {
     #[test]
     fn to_id_cycle() -> crate::Result {
         let store = file::store()?;
+        let gstore = file::general_store_from(&store)?;
         let mut r: Reference = store.find_loose("loop-a")?.into();
         assert_eq!(r.kind(), gix_ref::Kind::Symbolic, "there is something to peel");
         assert_eq!(r.name.as_bstr(), "refs/loop-a");
 
         assert!(matches!(
-            r.peel_to_id(&store, &gix_object::find::Never).unwrap_err(),
+            r.peel_to_id(&gstore, &gix_object::find::Never).unwrap_err(),
             gix_ref::peel::to_id::Error::FollowToObject(gix_ref::peel::to_object::Error::Cycle { .. })
         ));
         assert_eq!(r.name.as_bstr(), "refs/loop-a", "the ref is not changed on error");
 
         let mut r: Reference = store.find_loose("loop-a")?.into();
-        let err = r.follow_to_object(&store).unwrap_err();
+        let err = r.follow_to_object(&gstore).unwrap_err();
         assert!(matches!(err, gix_ref::peel::to_object::Error::Cycle { .. }));
         Ok(())
     }

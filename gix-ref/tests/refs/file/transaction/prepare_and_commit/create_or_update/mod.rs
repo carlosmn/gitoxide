@@ -877,6 +877,7 @@ fn packed_refs_creation_with_packed_refs_mode_prune_removes_original_loose_refs(
 #[test]
 fn packed_refs_creation_with_packed_refs_mode_leave_keeps_original_loose_refs() -> crate::Result {
     let (_keep, store) = store_writable("make_packed_ref_repository_for_overlay.sh")?;
+    let gstore = crate::file::general_store_from(&store)?;
     let branch = store.find("newer-as-loose")?;
     let packed = store.open_packed_buffer()?.expect("packed-refs");
     assert_ne!(
@@ -884,7 +885,7 @@ fn packed_refs_creation_with_packed_refs_mode_leave_keeps_original_loose_refs() 
         branch.target.try_id().expect("peeled"),
         "the packed ref is outdated"
     );
-    let previous_reflog_entries = branch.log_iter(&store).all()?.expect("log").count();
+    let previous_reflog_entries = branch.log_iter(&gstore).all()?.expect("log").count();
     let previous_packed_refs = packed.iter()?.filter_map(Result::ok).count();
 
     let edits = store.loose_iter()?.map(|r| r.expect("valid ref")).map(|r| RefEdit {
@@ -914,7 +915,7 @@ fn packed_refs_creation_with_packed_refs_mode_leave_keeps_original_loose_refs() 
         "the amount of loose refs didn't change and having symbolic ones isn't a problem"
     );
     assert_eq!(
-        branch.log_iter(&store).all()?.expect("log").count(),
+        branch.log_iter(&gstore).all()?.expect("log").count(),
         previous_reflog_entries,
         "reflog isn't adjusted as there is no change"
     );

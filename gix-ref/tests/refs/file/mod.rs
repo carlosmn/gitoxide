@@ -40,6 +40,17 @@ pub fn store_options() -> gix_ref::store::init::Options {
     }
 }
 
+pub fn general_store_from(store: &Store) -> crate::Result<gix_ref::Store> {
+    let opts = store_options();
+    match store.common_dir() {
+        Some(common_dir) => {
+            gix_ref::Store::for_linked_worktree(store.git_dir().to_owned(), common_dir.to_owned(), opts)
+                .map_err(Into::into)
+        }
+        None => gix_ref::Store::at(store.git_dir().to_owned(), opts).map_err(Into::into),
+    }
+}
+
 pub fn odb_at(objects_dir: impl Into<std::path::PathBuf>) -> std::io::Result<gix_odb::Handle> {
     gix_odb::at_opts(
         objects_dir,

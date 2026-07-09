@@ -56,10 +56,7 @@ fn worktree_store(
     ))
 }
 
-fn into_peel(
-    store: &gix_ref::file::Store,
-    odb: gix_odb::Handle,
-) -> impl Fn(gix_ref::Reference) -> gix_hash::ObjectId + '_ {
+fn into_peel(store: &gix_ref::Store, odb: gix_odb::Handle) -> impl Fn(gix_ref::Reference) -> gix_hash::ObjectId + '_ {
     move |mut r: gix_ref::Reference| r.peel_to_id(store, &odb).unwrap()
 }
 
@@ -88,8 +85,9 @@ mod read_only {
     fn linked() -> crate::Result {
         for packed in [false, true] {
             let (store, odb, _tmp) = worktree_store(packed, "w1", Mode::Read)?;
+            let gstore = crate::file::general_store_from(&store)?;
             assert_eq!(store.is_pristine("refs/heads/main".try_into()?), Some(false));
-            let peel = into_peel(&store, odb);
+            let peel = into_peel(&gstore, odb);
 
             let w1_head_id = peel(store.find("HEAD").unwrap());
             let head_id = peel(store.find("main-worktree/HEAD").unwrap());
@@ -137,8 +135,9 @@ mod read_only {
     fn main() -> crate::Result {
         for packed in [false, true] {
             let (store, odb, _tmp) = main_store(packed, Mode::Read)?;
+            let gstore = crate::file::general_store_from(&store)?;
             assert_eq!(store.is_pristine("refs/heads/main".try_into()?), Some(false));
-            let peel = into_peel(&store, odb);
+            let peel = into_peel(&gstore, odb);
 
             let head_id = peel(store.find("HEAD").unwrap());
             assert_eq!(
@@ -696,9 +695,11 @@ mod writable {
 }
 
 fn assert_reflog(store: &gix_ref::file::Store, a: Reference, b: Reference) {
-    let mut arl = a.log_iter(store);
+    let gstore =
+        crate::file::general_store_from(store).expect("general store can be constructed for reflog assertions");
+    let mut arl = a.log_iter(&gstore);
     let arl = arl.all().unwrap();
-    let mut brl = b.log_iter(store);
+    let mut brl = b.log_iter(&gstore);
     let brl = brl.all().unwrap();
     match (arl, brl) {
         (Some(arl), Some(brl)) => {
