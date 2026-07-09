@@ -29,9 +29,7 @@ impl crate::Store {
         match &self.inner {
             store::State::Loose { store } => store.is_pristine(default_ref),
             #[cfg(feature = "reftable")]
-            store::State::Reftable { .. } => {
-                todo!("is_pristine for reftable stores")
-            }
+            store::State::Reftable { store } => store.is_pristine(default_ref),
         }
     }
 
@@ -80,9 +78,7 @@ impl crate::Store {
         match &self.inner {
             store::State::Loose { store } => store.find(partial).map_err(Into::into),
             #[cfg(feature = "reftable")]
-            store::State::Reftable { .. } => {
-                todo!("find for reftable stores")
-            }
+            store::State::Reftable { store } => store.find(partial).map_err(Into::into),
         }
     }
 
@@ -96,9 +92,7 @@ impl crate::Store {
         match &self.inner {
             store::State::Loose { store } => store.try_find(partial).map_err(Into::into),
             #[cfg(feature = "reftable")]
-            store::State::Reftable { .. } => {
-                todo!("try_find for reftable stores")
-            }
+            store::State::Reftable { store } => store.try_find(partial).map_err(Into::into),
         }
     }
 
@@ -116,9 +110,7 @@ impl crate::Store {
         match &self.inner {
             store::State::Loose { store } => store.transaction(),
             #[cfg(feature = "reftable")]
-            store::State::Reftable { .. } => {
-                todo!("transaction for reftable stores")
-            }
+            store::State::Reftable { store } => store.transaction(),
         }
     }
 }

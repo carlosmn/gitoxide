@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use gix_features::threading::{Mutable, OwnShared};
+use gix_features::threading::{Mutable, OwnShared, lock};
 
 use crate::{Namespace, store::WriteReflog};
 
@@ -13,14 +13,14 @@ pub struct Store {
     reftable_dir: PathBuf,
 
     /// The kind of hash for the repository
-    object_hash: gix_hash::Kind,
+    pub(super) object_hash: gix_hash::Kind,
 
     /// The way to handle reflog edits.
     pub write_reflog: WriteReflog,
     /// The namespace to use for reads and edits.
     pub namespace: Option<Namespace>,
     /// A cached stack that we should be able to refresh and update as necessary
-    stack: Option<OwnShared<Mutable<stack::Stack>>>,
+    pub(super) stack: OwnShared<Mutable<Option<stack::Stack>>>,
 }
 
 impl Store {
@@ -38,7 +38,7 @@ impl Store {
             object_hash,
             write_reflog,
             namespace: None,
-            stack: None,
+            stack: OwnShared::new(Mutable::new(None)),
         }
     }
 
@@ -50,5 +50,15 @@ impl Store {
     /// Return the directory holding the reftable stack files.
     pub fn reftable_dir(&self) -> &Path {
         &self.reftable_dir
+    }
+
+    pub(super) fn assure_stack_uptodate(&self) -> super::Result<()> {
+        let options = Some(stack::Options::from_init_options(crate::store::init::Options {
+            object_hash: self.object_hash,
+            ..Default::default()
+        }));
+        let stack = stack::Stack::open(self.reftable_dir(), options)?;
+        *lock(&self.stack) = Some(stack);
+        Ok(())
     }
 }

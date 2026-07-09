@@ -1,5 +1,6 @@
 mod block;
 mod blocksource;
+mod find;
 mod merged;
 mod record;
 mod stack;
