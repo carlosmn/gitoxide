@@ -92,6 +92,7 @@ impl Record {
     pub fn clone_key(&self) -> Vec<u8> {
         match self {
             Self::Ref(RefRecord { refname, .. }) => refname.clone(),
+            Self::Obj(ObjRecord { hash_prefix, .. }) => hash_prefix.clone(),
             Self::Index(IndexRecord { last_key, .. }) => last_key.clone(),
             _ => todo!(),
         }
@@ -111,6 +112,7 @@ impl Record {
     ) -> Result<()> {
         match rec {
             Self::Ref(rec) => RefRecord::decode(rec, key, b, extra, hash_size, scratch),
+            Self::Obj(rec) => ObjRecord::decode(rec, key, b, extra, hash_size, scratch),
             Self::Index(rec) => IndexRecord::decode(rec, key, b, extra, hash_size, scratch),
             _ => todo!(),
         }
@@ -319,6 +321,37 @@ impl ObjRecord {
 
     pub fn is_deletion(&self) -> bool {
         false
+    }
+
+    pub fn decode(
+        rec: &mut Self,
+        key: &[u8],
+        b: &mut Bytes,
+        val_type: u8,
+        _hash_size: u32,
+        _scratch: &mut Vec<u8>,
+    ) -> Result<()> {
+        let mut count = u64::from(val_type);
+        if val_type == 0 {
+            (count, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+        }
+
+        let mut offsets = Vec::with_capacity(count as usize);
+        if count > 0 {
+            let mut last = 0_u64;
+            for _ in 0..count {
+                let (delta, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+                last = last.checked_add(delta).ok_or(Error::FormatError)?;
+                offsets.push(last);
+            }
+        }
+
+        *rec = Self {
+            hash_prefix: key.to_vec(),
+            offsets,
+        };
+
+        Ok(())
     }
 }
 
