@@ -96,6 +96,17 @@ impl crate::Store {
         }
     }
 
+    pub(crate) fn follow_reference(
+        &self,
+        reference: &crate::Reference,
+    ) -> Option<Result<crate::Reference, crate::find::existing::Error>> {
+        match &self.inner {
+            store::State::Loose { store } => store.follow_reference(reference),
+            #[cfg(feature = "reftable")]
+            store::State::Reftable { store } => store.follow_reference(reference),
+        }
+    }
+
     /// Return an iterator platform for references.
     pub fn iter(&self) -> Result<crate::iter::Platform<'_>, crate::open::Error> {
         match &self.inner {

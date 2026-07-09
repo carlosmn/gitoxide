@@ -6,6 +6,16 @@ use super::{
 use gix_features::threading::{Mutable, OwnShared, get_ref, lock};
 
 impl Store {
+    pub(crate) fn follow_reference(
+        &self,
+        reference: &crate::Reference,
+    ) -> Option<Result<crate::Reference, crate::find::existing::Error>> {
+        match &reference.target {
+            crate::Target::Object(_) => None,
+            crate::Target::Symbolic(full_name) => Some(self.find(full_name.as_ref())),
+        }
+    }
+
     /// Find a reference in the reftable stack.
     pub fn find<'a, Name, E>(&self, partial: Name) -> Result<crate::Reference, crate::find::existing::Error>
     where
