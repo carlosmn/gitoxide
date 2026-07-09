@@ -191,6 +191,60 @@ impl Stack {
         Ok(())
     }
 
+    /// Reload the tables if necessary.
+    pub fn reload(&mut self) -> Result<()> {
+        if self.is_uptodate()? {
+            return Ok(());
+        }
+
+        self.reload_maybe_reuse(true)
+    }
+
+    /// Returns whether the list file has changed since we reloaded.
+    fn is_uptodate(&self) -> Result<bool> {
+        // When we have cached stat information available then we use it to
+        // verify whether the file has been rewritten.
+        //
+        // Note that we explicitly do not want to use `stat_validity_check()`
+        // and friends here because they may end up not comparing the `st_dev`
+        // and `st_ino` fields. These functions thus cannot guarantee that we
+        // indeed still have the same file.
+        if let (Some(_), Some(list_md)) = (&self.file, &self.file_md) {
+            let md = match std::fs::metadata(&self.list_file) {
+                Ok(md) => md,
+                Err(e) if e.kind() == ErrorKind::NotFound => {
+                    // It's fine for "tables.list" to not exist. In that
+                    // case, we have to refresh when the loaded stack has
+                    // any tables.
+                    return Ok(self.tables.is_empty());
+                }
+                Err(_) => return Err(Error::IoError),
+            };
+
+            // When "tables.list" refers to the same file we can assume
+            // that it didn't change. This is because we always use
+            // rename(3P) to update the file and never write to it
+            // directly.
+            if list_md.dev() == md.dev() && list_md.ino() == md.ino() {
+                return Ok(true);
+            }
+        }
+
+        let (_, names) = read_lines(&self.list_file)?;
+
+        if self.tables.len() != names.len() {
+            return Ok(false);
+        }
+
+        for (table, name) in self.tables.iter().zip(names) {
+            if table.name() != &name {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
     /// Generate a path for the given reftable file
     fn filename_for(&self, name: &str) -> PathBuf {
         self.reftable_dir.join(name)
