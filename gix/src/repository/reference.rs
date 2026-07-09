@@ -361,6 +361,19 @@ impl crate::Repository {
         })
     }
 
+    /// Search references by fuzzy-matching `query` against their names and return up to `limit` best hits.
+    ///
+    /// Matching is performed against both the full reference name and its shortened form, with exact short-name
+    /// matches ranked highest.
+    #[cfg(feature = "reference-fuzzy-nucleo")]
+    pub fn find_references_fuzzy(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<reference::fuzzy::Match>, reference::fuzzy::Error> {
+        reference::fuzzy::find_in_repo(self, query, limit)
+    }
+
     /// Try to find the reference named `name`, like `main`, `heads/branch`, `HEAD` or `origin/other`, and return it.
     ///
     /// Otherwise return `None` if the reference wasn't found.

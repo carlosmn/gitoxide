@@ -5,6 +5,9 @@ use gix_ref::ReferenceExt;
 
 use crate::{Blob, Commit, Id, Object, Reference, Tag, Tree};
 
+/// Fuzzy searching of repository references by name.
+#[cfg(feature = "reference-fuzzy-nucleo")]
+pub mod fuzzy;
 pub mod iter;
 ///
 pub mod remote;

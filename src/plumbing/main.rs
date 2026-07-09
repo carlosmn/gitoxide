@@ -556,11 +556,21 @@ pub fn main() -> Result<()> {
             },
         ),
         Subcommands::Branch(platform) => match platform.cmd {
-            branch::Subcommands::List { all } => {
+            branch::Subcommands::List {
+                all,
+                #[cfg(feature = "reference-fuzzy-nucleo")]
+                fuzzy,
+                sort,
+            } => {
                 use core::repository::branch::list;
 
                 let kind = if all { list::Kind::All } else { list::Kind::Local };
-                let options = list::Options { kind };
+                let options = list::Options {
+                    kind,
+                    #[cfg(feature = "reference-fuzzy-nucleo")]
+                    fuzzy,
+                    sort,
+                };
 
                 prepare_and_run(
                     "branch-list",

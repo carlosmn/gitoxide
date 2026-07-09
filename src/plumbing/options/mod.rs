@@ -254,6 +254,14 @@ pub mod branch {
             /// List remote-tracking as well as local branches.
             #[clap(long, short = 'a')]
             all: bool,
+            #[cfg(feature = "reference-fuzzy-nucleo")]
+            /// Fuzzy-match branch names against the given query.
+            #[cfg(feature = "reference-fuzzy-nucleo")]
+            #[clap(long)]
+            fuzzy: Option<String>,
+            /// Sort fuzzy matches alphabetically before printing them.
+            #[clap(long)]
+            sort: bool,
         },
     }
 }
