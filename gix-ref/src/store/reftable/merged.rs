@@ -150,29 +150,8 @@ impl MergedIter {
 
         Ok(true)
     }
-}
 
-impl super::Iter for MergedIter {
-    fn seek(&mut self, want: &Record) -> Result<()> {
-        self.advance_index = -1;
-        self.pq.clear();
-
-        for i in 0..self.iters.len() {
-            match self.iters[i].seek(want) {
-                // This is for now how we indicate not finding the thing, we
-                // should change it I think
-                Err(Error::Iterator) => continue,
-                Err(e) => return Err(e),
-                Ok(_) => {}
-            }
-
-            self.advance_subiter(i)?;
-        }
-
-        Ok(())
-    }
-
-    fn next(&mut self, rec: &mut Record) -> Result<bool> {
+    fn next_entry(&mut self, rec: &mut Record) -> Result<bool> {
         let mut empty = self.pq.is_empty();
 
         if self.advance_index >= 0 {
@@ -226,6 +205,43 @@ impl super::Iter for MergedIter {
         std::mem::swap(rec, &mut entry_rec);
 
         Ok(true)
+    }
+}
+
+impl super::Iter for MergedIter {
+    fn seek(&mut self, want: &Record) -> Result<()> {
+        self.advance_index = -1;
+        self.pq.clear();
+
+        for i in 0..self.iters.len() {
+            match self.iters[i].seek(want) {
+                // This is for now how we indicate not finding the thing, we
+                // should change it I think
+                Err(Error::Iterator) => continue,
+                Err(e) => return Err(e),
+                Ok(_) => {}
+            }
+
+            self.advance_subiter(i)?;
+        }
+
+        Ok(())
+    }
+
+    fn next(&mut self, rec: &mut Record) -> Result<bool> {
+        loop {
+            match self.next_entry(rec) {
+                Err(e) => return Err(e),
+                Ok(false) => return Ok(false),
+                Ok(true) => {
+                    if self.suppress_deletions && rec.is_deletion() {
+                        continue;
+                    }
+
+                    return Ok(true);
+                }
+            }
+        }
     }
 }
 

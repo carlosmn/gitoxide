@@ -115,6 +115,15 @@ impl Record {
             _ => todo!(),
         }
     }
+
+    pub fn is_deletion(&self) -> bool {
+        match self {
+            Self::Ref(rec) => rec.is_deletion(),
+            Self::Log(rec) => rec.is_deletion(),
+            Self::Obj(rec) => rec.is_deletion(),
+            Self::Index(rec) => rec.is_deletion(),
+        }
+    }
 }
 
 impl PartialEq for Record {
@@ -217,6 +226,10 @@ impl RefRecord {
 
         Ok(())
     }
+
+    pub fn is_deletion(&self) -> bool {
+        matches!(self.value_type, RefValueType::Deletion)
+    }
 }
 
 impl PartialOrd for RefRecord {
@@ -266,6 +279,10 @@ impl LogRecord {
             message: Vec::new(),
         }
     }
+
+    pub fn is_deletion(&self) -> bool {
+        matches!(self.value_type, LogValueType::Deletion)
+    }
 }
 
 impl PartialOrd for LogRecord {
@@ -298,6 +315,10 @@ impl ObjRecord {
             hash_prefix,
             offsets: Vec::new(),
         }
+    }
+
+    pub fn is_deletion(&self) -> bool {
+        false
     }
 }
 
@@ -337,6 +358,10 @@ impl IndexRecord {
         rec.offset = offset;
 
         Ok(())
+    }
+
+    pub fn is_deletion(&self) -> bool {
+        false
     }
 }
 

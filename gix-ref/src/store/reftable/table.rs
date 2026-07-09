@@ -307,7 +307,6 @@ impl TableIter {
             _ => unreachable!(),
         };
 
-
         // Traverse down the levels until we find a non-index entry.
         loop {
             // In case we seek a record that does not exist the index iter
@@ -423,9 +422,16 @@ impl super::Iter for TableIter {
             // Otherwise, we need to continue to the next block in the
             // table and retry. If there are no more blocks then the
             // iterator is drained.
-            if let Err(e) = self.next_block() {
-                self.is_finished = true;
-                return Err(e);
+            match self.next_block() {
+                Ok(true) => {}
+                Ok(false) => {
+                    self.is_finished = true;
+                    return Ok(false);
+                }
+                Err(e) => {
+                    self.is_finished = true;
+                    return Err(e);
+                }
             }
         }
     }
