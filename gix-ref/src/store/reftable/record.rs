@@ -92,6 +92,7 @@ impl Record {
     pub fn clone_key(&self) -> Vec<u8> {
         match self {
             Self::Ref(RefRecord { refname, .. }) => refname.clone(),
+            Self::Index(IndexRecord { last_key, .. }) => last_key.clone(),
             _ => todo!(),
         }
     }
@@ -110,6 +111,7 @@ impl Record {
     ) -> Result<()> {
         match rec {
             Self::Ref(rec) => RefRecord::decode(rec, key, b, extra, hash_size, scratch),
+            Self::Index(rec) => IndexRecord::decode(rec, key, b, extra, hash_size, scratch),
             _ => todo!(),
         }
     }
@@ -318,6 +320,23 @@ impl IndexRecord {
         let last_key = last_key.unwrap_or_default();
 
         Self { offset: 0, last_key }
+    }
+
+    pub fn decode(
+        rec: &mut Self,
+        key: &[u8],
+        b: &mut Bytes,
+        _val_type: u8,
+        _hash_size: u32,
+        _scratch: &mut Vec<u8>,
+    ) -> Result<()> {
+        rec.last_key.clear();
+        rec.last_key.extend_from_slice(key);
+
+        let (offset, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+        rec.offset = offset;
+
+        Ok(())
     }
 }
 
