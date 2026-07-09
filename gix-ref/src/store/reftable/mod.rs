@@ -1,6 +1,7 @@
 mod block;
 mod blocksource;
 mod find;
+pub(crate) mod iter;
 mod merged;
 mod record;
 mod stack;

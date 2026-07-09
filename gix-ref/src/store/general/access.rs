@@ -101,7 +101,7 @@ impl crate::Store {
         match &self.inner {
             store::State::Loose { store } => store.iter().map(crate::iter::Platform::from_file),
             #[cfg(feature = "reftable")]
-            store::State::Reftable { store } => Ok(crate::iter::Platform::from_reftable(store)),
+            store::State::Reftable { store } => store.iter().map(crate::iter::Platform::from_reftable),
         }
     }
 

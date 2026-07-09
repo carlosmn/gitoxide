@@ -9,9 +9,7 @@ pub struct Platform<'s> {
 enum State<'s> {
     File(crate::file::iter::Platform<'s>),
     #[cfg(feature = "reftable")]
-    Reftable {
-        store: &'s crate::reftable::Store,
-    },
+    Reftable(crate::reftable::iter::Platform<'s>),
 }
 
 /// An iterator over references, independent of the underlying ref storage backend.
@@ -22,10 +20,7 @@ pub struct References<'p, 's> {
 enum IterState<'p, 's> {
     File(crate::file::iter::LooseThenPacked<'p, 's>),
     #[cfg(feature = "reftable")]
-    Reftable {
-        _store: &'s crate::reftable::Store,
-        _marker: std::marker::PhantomData<&'p ()>,
-    },
+    Reftable(crate::reftable::iter::References),
 }
 
 /// The error returned while iterating references.
@@ -34,6 +29,9 @@ enum IterState<'p, 's> {
 pub enum Error {
     #[error(transparent)]
     Backend(#[from] crate::file::iter::loose_then_packed::Error),
+    #[cfg(feature = "reftable")]
+    #[error("The reftable backend failed while iterating references")]
+    Reftable(#[from] std::io::Error),
 }
 
 impl<'s> Platform<'s> {
@@ -44,9 +42,9 @@ impl<'s> Platform<'s> {
     }
 
     #[cfg(feature = "reftable")]
-    pub(crate) fn from_reftable(store: &'s crate::reftable::Store) -> Self {
+    pub(crate) fn from_reftable(platform: crate::reftable::iter::Platform<'s>) -> Self {
         Self {
-            state: State::Reftable { store },
+            state: State::Reftable(platform),
         }
     }
 
@@ -57,11 +55,8 @@ impl<'s> Platform<'s> {
                 state: IterState::File(platform.all()?),
             }),
             #[cfg(feature = "reftable")]
-            State::Reftable { store } => Ok(References {
-                state: IterState::Reftable {
-                    _store: store,
-                    _marker: std::marker::PhantomData,
-                },
+            State::Reftable(platform) => Ok(References {
+                state: IterState::Reftable(platform.all()?),
             }),
         }
     }
@@ -73,10 +68,9 @@ impl<'s> Platform<'s> {
                 state: IterState::File(platform.prefixed(prefix)?),
             }),
             #[cfg(feature = "reftable")]
-            State::Reftable { store } => {
-                let _ = (store, prefix);
-                todo!("prefixed() for reftable stores")
-            }
+            State::Reftable(platform) => Ok(References {
+                state: IterState::Reftable(platform.prefixed(prefix)?),
+            }),
         }
     }
 
@@ -87,10 +81,9 @@ impl<'s> Platform<'s> {
                 state: IterState::File(platform.pseudo()?),
             }),
             #[cfg(feature = "reftable")]
-            State::Reftable { store } => {
-                let _ = store;
-                todo!("pseudo() for reftable stores")
-            }
+            State::Reftable(platform) => Ok(References {
+                state: IterState::Reftable(platform.pseudo()?),
+            }),
         }
     }
 }
@@ -102,9 +95,7 @@ impl Iterator for References<'_, '_> {
         match &mut self.state {
             IterState::File(iter) => iter.next().map(|res| res.map_err(Into::into)),
             #[cfg(feature = "reftable")]
-            IterState::Reftable { .. } => {
-                todo!("reference iteration for reftable stores")
-            }
+            IterState::Reftable(iter) => iter.next().map(|res| res.map_err(Into::into)),
         }
     }
 }
