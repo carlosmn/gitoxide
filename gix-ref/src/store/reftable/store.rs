@@ -53,12 +53,18 @@ impl Store {
     }
 
     pub(super) fn assure_stack_uptodate(&self) -> super::Result<()> {
+        let mut stack_slot = lock(&self.stack);
+        if let Some(stack) = stack_slot.as_mut() {
+            return stack.reload();
+        }
+
         let options = Some(stack::Options::from_init_options(crate::store::init::Options {
             object_hash: self.object_hash,
             ..Default::default()
         }));
         let stack = stack::Stack::open(self.reftable_dir(), options)?;
-        *lock(&self.stack) = Some(stack);
+        *stack_slot = Some(stack);
+
         Ok(())
     }
 }
