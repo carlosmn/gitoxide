@@ -45,7 +45,10 @@ impl Store {
             .expect("BUG: stack should be loaded after assure_stack_uptodate()");
 
         let mut iter = stack.iter_refs();
-        let rec = Record::for_search(BlockType::Ref, None);
+        let rec = match &filter {
+            Filter::Prefixed(prefix) => Record::for_search(BlockType::Ref, Some(prefix.to_vec())),
+            _ => Record::for_search(BlockType::Ref, None),
+        };
         iter.seek(&rec).map_err(|err| io::Error::other(err.to_string()))?;
 
         Ok(References { iter, rec, filter })
@@ -90,7 +93,13 @@ impl Iterator for References {
 
             let matches = match &self.filter {
                 Filter::All => !crate::name::is_pseudo_ref(refname.as_bstr()),
-                Filter::Prefixed(prefix) => refname.starts_with(prefix.as_slice()),
+                Filter::Prefixed(prefix) => {
+                    if refname.starts_with(prefix.as_slice()) {
+                        true
+                    } else {
+                        return None;
+                    }
+                }
                 Filter::Pseudo => crate::name::is_pseudo_ref(refname.as_bstr()),
             };
             if !matches {
