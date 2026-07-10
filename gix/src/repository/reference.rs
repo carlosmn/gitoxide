@@ -374,6 +374,17 @@ impl crate::Repository {
         reference::fuzzy::find_in_repo(self, query, limit)
     }
 
+    /// Search references by fuzzy-matching `query`, limited to references whose full name starts with `prefix`.
+    #[cfg(feature = "reference-fuzzy-nucleo")]
+    pub fn find_references_fuzzy_prefixed(
+        &self,
+        query: &str,
+        limit: usize,
+        prefix: &str,
+    ) -> Result<Vec<reference::fuzzy::Match>, reference::fuzzy::Error> {
+        reference::fuzzy::find_in_repo_with_prefix(self, query, limit, Some(prefix))
+    }
+
     /// Try to find the reference named `name`, like `main`, `heads/branch`, `HEAD` or `origin/other`, and return it.
     ///
     /// Otherwise return `None` if the reference wasn't found.

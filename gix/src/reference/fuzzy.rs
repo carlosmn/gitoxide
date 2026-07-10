@@ -40,6 +40,15 @@ pub enum Error {
 }
 
 pub(crate) fn find_in_repo(repo: &Repository, query: &str, limit: usize) -> Result<Vec<Match>, Error> {
+    find_in_repo_with_prefix(repo, query, limit, None)
+}
+
+pub(crate) fn find_in_repo_with_prefix(
+    repo: &Repository,
+    query: &str,
+    limit: usize,
+    prefix: Option<&str>,
+) -> Result<Vec<Match>, Error> {
     if limit == 0 || query.is_empty() {
         return Ok(Vec::new());
     }
@@ -65,7 +74,10 @@ pub(crate) fn find_in_repo(repo: &Repository, query: &str, limit: usize) -> Resu
 
     let mut best = BinaryHeap::new();
     let platform = repo.references()?;
-    let iter = platform.all()?;
+    let iter = match prefix {
+        Some(prefix) => platform.prefixed(prefix)?,
+        None => platform.all()?,
+    };
     for reference in iter {
         let reference = match reference {
             Ok(reference) => reference,
