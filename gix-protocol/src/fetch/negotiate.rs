@@ -9,7 +9,7 @@ use std::borrow::Cow;
 
 use gix_date::SecondsSinceUnixEpoch;
 use gix_negotiate::Flags;
-use gix_ref::file::ReferenceExt;
+use gix_ref::ReferenceExt;
 
 use crate::fetch::{RefMap, Shallow, Tags, refmap};
 
@@ -24,11 +24,11 @@ pub enum Error {
     #[error(transparent)]
     LookupCommitInGraph(#[from] gix_revwalk::graph::get_or_insert_default::Error),
     #[error(transparent)]
-    OpenPackedRefsBuffer(#[from] gix_ref::packed::buffer::open::Error),
+    Open(#[from] gix_ref::open::Error),
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
-    InitRefIter(#[from] gix_ref::file::iter::loose_then_packed::Error),
+    InitRefIter(#[from] gix_ref::iter::Error),
     #[error(transparent)]
     PeelToId(#[from] gix_ref::peel::to_id::Error),
     #[error(transparent)]
@@ -120,7 +120,7 @@ pub struct Round {
 #[allow(clippy::too_many_arguments)]
 pub fn mark_complete_and_common_ref<Out, F, E>(
     objects: &(impl gix_object::Find + gix_object::FindHeader + gix_object::Exists),
-    refs: &gix_ref::file::Store,
+    refs: &gix_ref::Store,
     alternates: impl FnOnce() -> Result<Out, E>,
     negotiator: &mut dyn gix_negotiate::Negotiator,
     graph: &mut gix_negotiate::Graph<'_, '_>,
@@ -130,7 +130,7 @@ pub fn mark_complete_and_common_ref<Out, F, E>(
 ) -> Result<Action, Error>
 where
     E: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
-    Out: Iterator<Item = (gix_ref::file::Store, F)>,
+    Out: Iterator<Item = (gix_ref::Store, F)>,
     F: gix_object::Find,
 {
     let _span = gix_trace::detail!("mark_complete_and_common_ref", mappings = ref_map.mappings.len());
@@ -364,7 +364,7 @@ fn mark_recent_complete_commits(
 }
 
 fn mark_all_refs_in_repo(
-    store: &gix_ref::file::Store,
+    store: &gix_ref::Store,
     objects: &impl gix_object::Find,
     graph: &mut gix_negotiate::Graph<'_, '_>,
     queue: &mut Queue,
@@ -373,7 +373,7 @@ fn mark_all_refs_in_repo(
     let _span = gix_trace::detail!("mark_all_refs");
     for local_ref in store.iter()?.all()? {
         let mut local_ref = local_ref?;
-        let id = local_ref.peel_to_id_packed(store, objects, store.cached_packed_buffer()?.as_ref().map(|b| &***b))?;
+        let id = local_ref.peel_to_id(store, objects)?;
         let mut is_complete = false;
         if let Some(commit) = graph
             .get_or_insert_commit(id, |md| {

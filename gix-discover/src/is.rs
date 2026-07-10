@@ -65,8 +65,8 @@ pub(crate) fn git_with_metadata(
         // We expect to be able to parse any ref-hash, so we shouldn't have to know the repos hash here.
         // With ref-table, the hash is probably stored as part of the ref-db itself, so we can handle it from there.
         // In other words, it's important not to fail on detached heads here because we guessed the hash kind wrongly.
-        let refs = gix_ref::file::Store::at(dot_git.as_ref().into(), Default::default());
-        match refs.find_loose("HEAD") {
+        let refs = gix_ref::Store::at(dot_git.as_ref().into(), Default::default())?;
+        match refs.find("HEAD") {
             Ok(head) => {
                 if head.name.as_bstr() != "HEAD" {
                     return Err(crate::is_git::Error::MisplacedHead {
@@ -74,10 +74,9 @@ pub(crate) fn git_with_metadata(
                     });
                 }
             }
-            Err(gix_ref::file::find::existing::Error::Find(gix_ref::file::find::Error::ReferenceCreation {
-                source: _,
-                relative_path,
-            })) if relative_path == Path::new("HEAD") => {
+            Err(gix_ref::find::existing::Error::Find(gix_ref::find::Error::ReferenceCreation { relative_path }))
+                if relative_path == Path::new("HEAD") =>
+            {
                 // It's fine as long as the reference is found is `HEAD`.
             }
             Err(err) => {

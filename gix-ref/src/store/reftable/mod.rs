@@ -1,0 +1,184 @@
+mod block;
+mod blocksource;
+mod find;
+pub(crate) mod iter;
+mod merged;
+mod record;
+mod stack;
+mod store;
+mod table;
+
+use record::Record;
+pub use store::Store;
+
+use std::cmp::Ordering;
+
+/// Reftable result with its own set of errors
+type Result<T> = std::result::Result<T, Error>;
+
+/// The type of the block in the reftable
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BlockType {
+    Log = b'g',
+    Index = b'i',
+    Ref = b'r',
+    Obj = b'o',
+}
+
+impl From<BlockType> for u8 {
+    fn from(value: BlockType) -> u8 {
+        value as u8
+    }
+}
+
+impl TryFrom<u8> for BlockType {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self> {
+        let v = match value {
+            b'g' => BlockType::Log,
+            b'i' => BlockType::Index,
+            b'r' => BlockType::Ref,
+            b'o' => BlockType::Obj,
+            _ => return Err(Error::FormatError),
+        };
+
+        Ok(v)
+    }
+}
+
+impl PartialEq<u8> for BlockType {
+    fn eq(&self, other: &u8) -> bool {
+        *self as u8 == *other
+    }
+}
+
+impl PartialEq<BlockType> for u8 {
+    fn eq(&self, other: &BlockType) -> bool {
+        *self == *other as u8
+    }
+}
+
+/// Errors that can come from using reftables
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// General IO or system issues
+    #[error("unexpected file system behavior")]
+    IoError,
+    /// The table file contains invalid data
+    #[error("format inconsistency on reading data")]
+    FormatError,
+    /// The requested and actual block type are not the same
+    #[error("mismatched block type")]
+    MismatchedBlockType,
+    /// The offset calculated is beyond our block of memory
+    #[error("invalid offset")]
+    InvalidOffset,
+    /// An error trying to run the iterator (might want to remove it)
+    #[error("there was an error in an iterator")]
+    Iterator,
+    /// Improer use of the API, e.g. mixing up block types
+    #[error("improper use of the API")]
+    Api,
+    /// Reftable file was not found while looking it up
+    #[error("a reftable file does not exist")]
+    NotExist,
+}
+
+/// Common iterator trait for an iterator that yields records
+trait Iter {
+    /// Position the iterator at the wanted record such that a call to `next()`
+    /// would return that record, if it exists.
+    fn seek(&mut self, want: &Record) -> Result<()>;
+
+    /// Yield the next record and advance the iterator.
+    ///
+    /// Returns `Err` on error, and Ok(true) if we yielded a value.
+    ///
+    /// Provide the last record provided so we can re-use allocations.
+    /// Alternatively for the first time, provide one created with
+    /// [`Record::for_search()`].
+    fn next(&mut self, rec: &mut Record) -> Result<bool>;
+}
+
+/// Read a big-endian 24 bit value as a u32
+fn get_be24(buf: &[u8]) -> u32 {
+    let bytes = [0, buf[0], buf[1], buf[2]];
+    u32::from_be_bytes(bytes)
+}
+
+use bytes::{Buf, Bytes, buf::Reader};
+use gix_features::decode::leb64_from_read;
+use std::io::Read;
+
+fn decode_keylen(b: &mut Bytes) -> Result<(u64, u64, u8)> {
+    let (prefix_len, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+    let (mut suffix_len, _) = leb64_from_read(b.reader()).map_err(|_| Error::FormatError)?;
+
+    // We encode e.g. the value_type for references here
+    let extra = (suffix_len & 0x7) as u8;
+    suffix_len >>= 3;
+
+    Ok((prefix_len, suffix_len, extra))
+}
+
+fn decode_key(b: &mut Bytes, last_key: &mut Vec<u8>) -> Result<u8> {
+    let (prefix_len, suffix_len, extra) = decode_keylen(b)?;
+
+    let len_left = b.remaining() as u64;
+    if len_left < suffix_len || prefix_len > last_key.len() as u64 {
+        return Err(Error::FormatError);
+    }
+
+    // Most of the time refs aren't wildly different lengths so we expect the
+    // initialization isn't going to be a significant cost.
+    last_key.resize((prefix_len + suffix_len) as usize, 0);
+    b.reader()
+        .read_exact(&mut last_key[prefix_len as usize..])
+        .map_err(|_| Error::IoError)?;
+
+    Ok(extra)
+}
+
+/// find smallest index i in [0, sz) at which `f(i) -> Greater`, assuming that f is
+/// ascending. Return sz if `f(i) -> Equals` for all indices. The search is aborted
+/// and `sz` is returned in case `f(i) -> Less`.
+///
+/// Contrary to bsearch(3), this returns something useful if the argument is not
+/// found.
+fn binsearch<F>(sz: usize, mut f: F) -> Result<usize>
+where
+    F: FnMut(usize) -> Result<Ordering>,
+{
+    let mut lo = 0_usize;
+    let mut hi = sz;
+
+    /* Invariants:
+     *
+     *  (hi == sz) || f(hi) == true
+     *  (lo == 0 && f(0) == true) || fi(lo) == false
+     */
+    while hi - lo > 1 {
+        let mid = lo + (hi - lo) / 2;
+        let ret = f(mid)?;
+        if ret == Ordering::Less {
+            return Ok(sz);
+        }
+
+        if ret == Ordering::Greater {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+
+    if lo != 0 {
+        return Ok(hi);
+    }
+
+    match f(0)? {
+        Ordering::Greater => Ok(0),
+        _ => Ok(1),
+    }
+}

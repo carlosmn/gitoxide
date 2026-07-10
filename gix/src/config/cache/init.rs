@@ -26,6 +26,7 @@ impl Cache {
             lossy,
             is_bare,
             object_hash,
+            ref_storage: _,
             reflog: _,
             precompose_unicode: _,
             protect_windows: _,
@@ -305,8 +306,9 @@ impl crate::Repository {
     }
 
     fn apply_changed_values(&mut self) {
-        self.refs.write_reflog = util::reflog_or_default(self.config.reflog, self.workdir().is_some());
-        self.refs.namespace.clone_from(&self.config.refs_namespace);
+        self.refs
+            .set_write_reflog(util::reflog_or_default(self.config.reflog, self.workdir().is_some()));
+        self.refs.set_namespace(self.config.refs_namespace.clone());
     }
 }
 

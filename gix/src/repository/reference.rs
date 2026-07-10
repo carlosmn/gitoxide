@@ -44,12 +44,12 @@ impl crate::Repository {
     ///
     /// Namespaces allow to partition references, and is configured per `Easy`.
     pub fn namespace(&self) -> Option<&gix_ref::Namespace> {
-        self.refs.namespace.as_ref()
+        self.refs.namespace()
     }
 
     /// Remove the currently set reference namespace and return it, affecting only this `Easy`.
     pub fn clear_namespace(&mut self) -> Option<gix_ref::Namespace> {
-        self.refs.namespace.take()
+        self.refs.set_namespace(None)
     }
 
     /// Set the reference namespace to the given value, like `"foo"` or `"foo/bar"`.
@@ -64,7 +64,7 @@ impl crate::Repository {
         gix_validate::reference::name::Error: From<E>,
     {
         let namespace = gix_ref::namespace::expand(namespace)?;
-        Ok(self.refs.namespace.replace(namespace))
+        Ok(self.refs.set_namespace(Some(namespace)))
     }
 
     // TODO: more tests or usage
@@ -320,14 +320,14 @@ impl crate::Repository {
     pub fn find_reference<'a, Name, E>(&self, name: Name) -> Result<Reference<'_>, reference::find::existing::Error>
     where
         Name: TryInto<&'a PartialNameRef, Error = E> + Clone,
-        gix_ref::file::find::Error: From<E>,
+        gix_ref::find::Error: From<E>,
     {
         // TODO: is there a way to just pass `partial_name` to `try_find_reference()`? Compiler freaks out then
         //       as it still wants to see `E` there, not `Infallible`.
         let partial_name = name
             .clone()
             .try_into()
-            .map_err(|err| reference::find::Error::Find(gix_ref::file::find::Error::from(err)))?;
+            .map_err(|err| reference::find::Error::Find(gix_ref::find::Error::from(err)))?;
         self.try_find_reference(name)?
             .ok_or_else(|| reference::find::existing::Error::NotFound {
                 name: partial_name.to_owned(),
@@ -361,6 +361,30 @@ impl crate::Repository {
         })
     }
 
+    /// Search references by fuzzy-matching `query` against their names and return up to `limit` best hits.
+    ///
+    /// Matching is performed against both the full reference name and its shortened form, with exact short-name
+    /// matches ranked highest.
+    #[cfg(feature = "reference-fuzzy-nucleo")]
+    pub fn find_references_fuzzy(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<reference::fuzzy::Match>, reference::fuzzy::Error> {
+        reference::fuzzy::find_in_repo(self, query, limit)
+    }
+
+    /// Search references by fuzzy-matching `query`, limited to references whose full name starts with `prefix`.
+    #[cfg(feature = "reference-fuzzy-nucleo")]
+    pub fn find_references_fuzzy_prefixed(
+        &self,
+        query: &str,
+        limit: usize,
+        prefix: &str,
+    ) -> Result<Vec<reference::fuzzy::Match>, reference::fuzzy::Error> {
+        reference::fuzzy::find_in_repo_with_prefix(self, query, limit, Some(prefix))
+    }
+
     /// Try to find the reference named `name`, like `main`, `heads/branch`, `HEAD` or `origin/other`, and return it.
     ///
     /// Otherwise return `None` if the reference wasn't found.
@@ -368,7 +392,7 @@ impl crate::Repository {
     pub fn try_find_reference<'a, Name, E>(&self, name: Name) -> Result<Option<Reference<'_>>, reference::find::Error>
     where
         Name: TryInto<&'a PartialNameRef, Error = E>,
-        gix_ref::file::find::Error: From<E>,
+        gix_ref::find::Error: From<E>,
     {
         match self.refs.try_find(name) {
             Ok(r) => match r {

@@ -2,15 +2,37 @@ use crate::{PartialNameRef, Reference, store};
 
 mod error {
     use std::convert::Infallible;
+    use std::path::PathBuf;
 
-    /// The error returned by [`crate::file::Store::find_loose()`].
+    /// The error returned by [`crate::Store::find()`] and [`crate::Store::try_find()`].
     #[derive(Debug, thiserror::Error)]
     #[allow(missing_docs)]
     pub enum Error {
-        #[error("An error occurred while finding a reference in the loose file database")]
-        Loose(#[from] crate::file::find::Error),
         #[error("The ref name or path is not a valid ref name")]
         RefnameValidation(#[from] crate::name::Error),
+        #[error("The ref file {path:?} could not be read in full")]
+        ReadFileContents { source: std::io::Error, path: PathBuf },
+        #[error("The reference at \"{relative_path}\" could not be instantiated")]
+        ReferenceCreation { relative_path: PathBuf },
+        #[error("A packed ref lookup failed")]
+        PackedRef(#[from] crate::packed::find::Error),
+        #[error("Could not open the packed refs buffer when trying to find references")]
+        PackedOpen(#[from] crate::open::Error),
+    }
+
+    impl From<crate::file::find::Error> for Error {
+        fn from(value: crate::file::find::Error) -> Self {
+            match value {
+                crate::file::find::Error::RefnameValidation(err) => Self::RefnameValidation(err),
+                crate::file::find::Error::ReadFileContents { source, path } => Self::ReadFileContents { source, path },
+                crate::file::find::Error::ReferenceCreation {
+                    source: _,
+                    relative_path,
+                } => Self::ReferenceCreation { relative_path },
+                crate::file::find::Error::PackedRef(err) => Self::PackedRef(err),
+                crate::file::find::Error::PackedOpen(err) => Self::PackedOpen(err),
+            }
+        }
     }
 
     impl From<Infallible> for Error {
@@ -36,11 +58,16 @@ impl store::Handle {
             handle::State::Loose { store: _, .. } => {
                 todo!()
             }
+            #[cfg(feature = "reftable")]
+            handle::State::Reftable { store: _, .. } => {
+                todo!()
+            }
         }
     }
 }
 
-mod existing {
+/// Errors for [`crate::Store::find()`] where absence is considered an error.
+pub mod existing {
     mod error {
         use std::path::PathBuf;
 
@@ -49,9 +76,18 @@ mod existing {
         #[allow(missing_docs)]
         pub enum Error {
             #[error("An error occurred while finding a reference in the database")]
-            Find(#[from] crate::store::find::Error),
+            Find(#[from] crate::find::Error),
             #[error("The ref partially named {name:?} could not be found")]
             NotFound { name: PathBuf },
+        }
+
+        impl From<crate::file::find::existing::Error> for Error {
+            fn from(value: crate::file::find::existing::Error) -> Self {
+                match value {
+                    crate::file::find::existing::Error::Find(err) => Self::Find(err.into()),
+                    crate::file::find::existing::Error::NotFound { name } => Self::NotFound { name },
+                }
+            }
         }
     }
 

@@ -34,6 +34,9 @@ archive = ["dep:gix-archive-for-configuration-only", "gix/worktree-archive"]
 ## The ability to clean a repository, similar to `git clean`.
 clean = ["gix/dirwalk"]
 
+## Enable fuzzy matching for branch listing.
+reference-fuzzy-nucleo = ["gix/reference-fuzzy-nucleo"]
+
 #! ### Mutually Exclusive Networking
 #! If both are set, _blocking-client_ will take precedence, allowing `--all-features` to be used.
 

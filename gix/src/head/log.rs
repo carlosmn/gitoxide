@@ -8,8 +8,13 @@ use crate::{
 impl<'repo> Head<'repo> {
     /// Return a platform for obtaining iterators on the reference log associated with the `HEAD` reference.
     pub fn log_iter(&self) -> gix_ref::file::log::iter::Platform<'static, 'repo> {
+        let store = self
+            .repo
+            .refs
+            .as_file()
+            .expect("HEAD reflog iteration currently requires a file-backed reference store");
         gix_ref::file::log::iter::Platform {
-            store: &self.repo.refs,
+            store,
             name: "HEAD".try_into().expect("HEAD is always valid"),
             buf: Vec::new(),
         }

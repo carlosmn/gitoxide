@@ -8,9 +8,9 @@ pub mod edit {
     #[allow(missing_docs)]
     pub enum Error {
         #[error(transparent)]
-        FileTransactionPrepare(#[from] gix_ref::file::transaction::prepare::Error),
+        TransactionPrepare(#[from] gix_ref::transaction::prepare::Error),
         #[error(transparent)]
-        FileTransactionCommit(#[from] gix_ref::file::transaction::commit::Error),
+        TransactionCommit(#[from] gix_ref::transaction::commit::Error),
         #[error(transparent)]
         NameValidation(#[from] gix_validate::reference::name::Error),
         #[error(
@@ -32,7 +32,7 @@ pub mod peel {
         #[error(transparent)]
         ToId(#[from] gix_ref::peel::to_id::Error),
         #[error(transparent)]
-        PackedRefsOpen(#[from] gix_ref::packed::buffer::open::Error),
+        PackedRefsOpen(#[from] gix_ref::open::Error),
     }
 
     ///
@@ -44,7 +44,7 @@ pub mod peel {
             #[error(transparent)]
             FollowToObject(#[from] gix_ref::peel::to_object::Error),
             #[error(transparent)]
-            PackedRefsOpen(#[from] gix_ref::packed::buffer::open::Error),
+            PackedRefsOpen(#[from] gix_ref::open::Error),
             #[error(transparent)]
             FindObject(#[from] crate::object::find::existing::Error),
             #[error(transparent)]
@@ -64,7 +64,7 @@ pub mod follow {
             #[error(transparent)]
             FollowToObject(#[from] gix_ref::peel::to_object::Error),
             #[error(transparent)]
-            PackedRefsOpen(#[from] gix_ref::packed::buffer::open::Error),
+            PackedRefsOpen(#[from] gix_ref::open::Error),
         }
     }
 }
@@ -143,6 +143,6 @@ pub mod find {
     #[allow(missing_docs)]
     pub enum Error {
         #[error(transparent)]
-        Find(#[from] gix_ref::file::find::Error),
+        Find(#[from] gix_ref::find::Error),
     }
 }

@@ -24,13 +24,13 @@ fn run() -> crate::Result {
             let obj_buf = RefCell::new(Vec::new());
             let buf = std::fs::read(base.join(format!("baseline.{algo_name}")))?;
             let store = gix_odb::at(base.join("client").join(".git/objects"))?;
-            let refs = gix_ref::file::Store::at(
+            let refs = gix_ref::Store::at(
                 base.join("client").join(".git"),
                 gix_ref::store::init::Options {
                     write_reflog: WriteReflog::Disable,
                     ..Default::default()
                 },
-            );
+            )?;
             let lookup_names = |names: &[&str]| -> Vec<gix_hash::ObjectId> {
                 names
                     .iter()

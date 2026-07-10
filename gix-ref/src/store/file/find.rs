@@ -214,6 +214,16 @@ impl file::Store {
             )),
         }
     }
+
+    pub(crate) fn follow_reference(
+        &self,
+        reference: &crate::Reference,
+    ) -> Option<Result<crate::Reference, crate::find::existing::Error>> {
+        match &reference.target {
+            crate::Target::Object(_) => None,
+            crate::Target::Symbolic(full_name) => Some(self.find(full_name.as_ref()).map_err(Into::into)),
+        }
+    }
 }
 
 impl file::Store {

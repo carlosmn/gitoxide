@@ -142,6 +142,9 @@ gitoxide-core-tools-archive = ["gitoxide-core/archive"]
 ## A sub-command to clean the worktree from untracked and ignored files.
 gitoxide-core-tools-clean = ["gitoxide-core/clean"]
 
+## Enable fuzzy matching for branch listing.
+reference-fuzzy-nucleo = ["gitoxide-core/reference-fuzzy-nucleo", "gix/reference-fuzzy-nucleo"]
+
 #! ### Building Blocks for mutually exclusive networking
 #! Blocking and async features are mutually exclusive and cause a compile-time error. This also means that `cargo … --all-features` will fail.
 #! Within each section, features can be combined.

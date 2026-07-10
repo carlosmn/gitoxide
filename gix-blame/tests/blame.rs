@@ -160,14 +160,14 @@ impl Fixture {
         use gix_ref::store::WriteReflog;
 
         let object_hash = fixture_hash_kind();
-        let store = gix_ref::file::Store::at(
+        let store = gix_ref::Store::at(
             worktree_path.join(".git"),
             gix_ref::store::init::Options {
                 write_reflog: WriteReflog::Disable,
                 object_hash,
                 ..Default::default()
             },
-        );
+        )?;
         let odb = gix_odb::at_opts(
             worktree_path.join(".git/objects"),
             Vec::new(),
@@ -177,10 +177,10 @@ impl Fixture {
             },
         )?;
 
-        let mut reference = gix_ref::file::Store::find(&store, "HEAD")?;
+        let mut reference = gix_ref::Store::find(&store, "HEAD")?;
 
         // Needed for `peel_to_id`.
-        use gix_ref::file::ReferenceExt;
+        use gix_ref::ReferenceExt;
 
         let head_id = reference.peel_to_id(&store, &odb)?;
 

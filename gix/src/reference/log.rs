@@ -1,7 +1,7 @@
 //!
 #![allow(clippy::empty_docs)]
 use gix_object::commit::MessageRef;
-use gix_ref::file::ReferenceExt;
+use gix_ref::ReferenceExt;
 
 use crate::{
     Reference,

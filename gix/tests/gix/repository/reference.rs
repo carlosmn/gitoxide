@@ -210,6 +210,22 @@ mod iter_references {
         assert_eq!(actual.name().as_bstr(), "refs/tags/t1");
         Ok(())
     }
+
+    #[cfg(feature = "reference-fuzzy-nucleo")]
+    #[test]
+    fn fuzzy_find_prefers_exact_short_name_matches() -> crate::Result {
+        let repo = repo()?;
+        let actual = repo.find_references_fuzzy("main", 3)?;
+        assert!(actual.len() <= 3, "top-k limit is applied");
+        assert_eq!(actual[0].name().as_bstr(), "refs/heads/main");
+        assert!(
+            actual
+                .iter()
+                .any(|hit| hit.name().as_bstr() == "refs/remotes/origin/main"),
+            "remote main should still be considered a relevant hit"
+        );
+        Ok(())
+    }
 }
 
 mod head {

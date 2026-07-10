@@ -7,7 +7,8 @@ use crate::config::{
 };
 
 /// A utility to deal with the cyclic dependency between the ref store and the configuration. The ref-store needs the
-/// object hash kind, and the configuration needs the current branch name to resolve conditional includes with `onbranch`.
+/// object hash kind and whether to use reftable, and the configuration needs the current branch name to resolve
+/// conditional includes with `onbranch`.
 pub(crate) struct StageOne {
     pub git_dir_config: gix_config::File<'static>,
     pub buf: Vec<u8>,
@@ -15,6 +16,7 @@ pub(crate) struct StageOne {
     pub is_bare: Option<bool>,
     pub lossy: bool,
     pub object_hash: gix_hash::Kind,
+    pub ref_storage: gix_ref::store::RefStorage,
     pub reflog: Option<gix_ref::store::WriteReflog>,
     pub precompose_unicode: bool,
     pub protect_windows: bool,
@@ -52,6 +54,12 @@ impl StageOne {
             (0 | 1, None) => legacy_object_hash()?,
             (version, _) => return Err(Error::UnsupportedRepositoryFormatVersion { version }),
         };
+        let ref_storage = config
+            .string(Extensions::REF_STORAGE)
+            .map(|value| Extensions::REF_STORAGE.try_into_ref_storage(value))
+            .transpose()?
+            .unwrap_or_default()
+            .into();
 
         let extension_worktree = util::config_bool(
             &config,
@@ -95,6 +103,7 @@ impl StageOne {
             is_bare,
             lossy,
             object_hash,
+            ref_storage,
             reflog,
             precompose_unicode,
             protect_windows,

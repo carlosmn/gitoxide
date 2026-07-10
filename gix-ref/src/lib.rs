@@ -29,6 +29,8 @@ use gix_object::bstr::{BStr, BString};
 
 #[path = "store/mod.rs"]
 mod store_impl;
+#[cfg(feature = "reftable")]
+pub use store_impl::reftable;
 pub use store_impl::{file, packed};
 
 mod fullname;
@@ -42,6 +44,8 @@ pub mod transaction;
 mod parse;
 mod raw;
 
+/// Extension methods for [`Reference`] that operate with a [`Store`].
+pub use file::ReferenceExt;
 pub use raw::Reference;
 
 mod target;
@@ -49,8 +53,20 @@ mod target;
 ///
 pub mod log;
 
+/// Backend-agnostic reference iteration APIs.
+pub mod iter;
+
 ///
 pub mod peel;
+
+/// Errors that can come from trying to find references
+pub use store::find;
+
+/// Errors related to opening packed refs snapshots used by higher-level APIs.
+pub mod open {
+    /// The error returned when opening packed refs buffers/snapshots fails.
+    pub type Error = crate::packed::buffer::open::Error;
+}
 
 ///
 pub mod store {
@@ -60,6 +76,8 @@ pub mod store {
         /// Options for use during [initialization](crate::file::Store::at).
         #[derive(Debug, Copy, Clone, Default)]
         pub struct Options {
+            /// The storage backend to use for references.
+            pub ref_storage: super::RefStorage,
             /// How to write the ref-log.
             pub write_reflog: super::WriteReflog,
             /// The kind of hash to expect in
@@ -72,6 +90,26 @@ pub mod store {
             pub prohibit_windows_device_names: bool,
         }
     }
+
+    /// The storage backend used for references.
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+    pub enum RefStorage {
+        /// Keep references in loose files and `packed-refs`.
+        #[default]
+        Files,
+        /// Use reftable files for references.
+        Reftable,
+    }
+
+    impl std::fmt::Display for RefStorage {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                RefStorage::Files => f.write_str("files"),
+                RefStorage::Reftable => f.write_str("reftable"),
+            }
+        }
+    }
+
     /// The way a file store handles the reflog
     #[derive(Default, Debug, PartialOrd, PartialEq, Ord, Eq, Hash, Clone, Copy)]
     pub enum WriteReflog {
@@ -94,11 +132,19 @@ pub mod store {
     }
 
     #[allow(dead_code)]
+    #[derive(Clone)]
     pub(crate) enum State {
-        Loose { store: file::Store },
+        Loose {
+            store: file::Store,
+        },
+        #[cfg(feature = "reftable")]
+        Reftable {
+            store: reftable::Store,
+        },
     }
 
     pub(crate) mod general;
+    pub use general::Error as StoreError;
 
     ///
     #[path = "general/handle/mod.rs"]
@@ -106,12 +152,15 @@ pub mod store {
     pub use handle::find;
 
     use crate::file;
+    #[cfg(feature = "reftable")]
+    use crate::reftable;
 }
 
 /// The git reference store.
 /// TODO: Figure out if handles are needed at all, which depends on the ref-table implementation.
 #[allow(dead_code)]
-pub(crate) struct Store {
+#[derive(Clone)]
+pub struct Store {
     inner: store::State,
 }
 
@@ -148,7 +197,7 @@ pub enum Kind {
     Object,
     /// A ref that points to another reference, adding a level of indirection.
     ///
-    /// It can be resolved to an id using the [`peel_to_id()`][`crate::file::ReferenceExt::peel_to_id()`] method.
+    /// It can be resolved to an id using the [`peel_to_id()`][`crate::ReferenceExt::peel_to_id()`] method.
     Symbolic,
 }
 

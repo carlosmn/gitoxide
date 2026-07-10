@@ -24,6 +24,8 @@ sha256 = ["gix-hash/sha256"]
 serde = ["dep:serde", "gix-hash/serde", "gix-actor/serde", "gix-object/serde"]
 ## Enable support for thread-safety.
 parallel = ["gix-features/parallel"]
+## Enable support for reftable
+reftable = ["dep:bytes", "gix-features/crc32"]
 
 [dependencies]
 gix-features = { version = "^0.48.1", path = "../gix-features", features = ["walkdir"] }
@@ -42,6 +44,9 @@ serde = { version = "1.0.114", optional = true, default-features = false, featur
 
 # packed refs
 memmap2 = "0.9.11"
+
+# reftable -- it would be good for this to be in sync with gix-features
+bytes = { version = "1.11.1", optional = true }
 
 document-features = { version = "0.2.1", optional = true }
 

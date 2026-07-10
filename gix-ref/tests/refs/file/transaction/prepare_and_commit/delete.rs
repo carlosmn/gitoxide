@@ -148,6 +148,7 @@ fn delete_ref_with_incorrect_previous_value_fails() -> crate::Result {
 #[test]
 fn delete_reflog_only_of_symbolic_no_deref() -> crate::Result {
     let (_keep, store) = store_writable("make_repo_for_reflog.sh")?;
+    let gstore = crate::file::general_store_from(&store)?;
     let head = store.find_loose("HEAD")?;
     assert!(head.log_exists(&store));
 
@@ -169,12 +170,12 @@ fn delete_reflog_only_of_symbolic_no_deref() -> crate::Result {
 
     assert_eq!(edits.len(), 1);
     let head: Reference = store.find_loose("HEAD")?.into();
-    assert!(!head.log_exists(&store));
+    assert!(!head.log_exists(&gstore));
     let main = store.find_loose("main").expect("referent still exists");
     assert!(main.log_exists(&store), "log is untouched, too");
     assert_eq!(
         main.target,
-        head.follow(&store).expect("a symref")?.target,
+        head.follow(&gstore).expect("a symref")?.target,
         "head points to main"
     );
     Ok(())
@@ -183,6 +184,7 @@ fn delete_reflog_only_of_symbolic_no_deref() -> crate::Result {
 #[test]
 fn delete_reflog_only_of_symbolic_with_deref() -> crate::Result {
     let (_keep, store) = store_writable("make_repo_for_reflog.sh")?;
+    let gstore = crate::file::general_store_from(&store)?;
     let head = store.find_loose("HEAD")?;
     assert!(head.log_exists(&store));
 
@@ -204,12 +206,12 @@ fn delete_reflog_only_of_symbolic_with_deref() -> crate::Result {
 
     assert_eq!(edits.len(), 2);
     let head: Reference = store.find_loose("HEAD")?.into();
-    assert!(!head.log_exists(&store));
+    assert!(!head.log_exists(&gstore));
     let main = store.find_loose("main").expect("referent still exists");
     assert!(!main.log_exists(&store), "log is removed");
     assert_eq!(
         main.target,
-        head.follow(&store).expect("a symref")?.target,
+        head.follow(&gstore).expect("a symref")?.target,
         "head points to main"
     );
     Ok(())

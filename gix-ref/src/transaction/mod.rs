@@ -132,3 +132,15 @@ pub enum RefLog {
 
 mod ext;
 pub use ext::RefEditsExt;
+
+/// Errors for preparing reference transactions.
+pub mod prepare {
+    /// The error returned by transaction preparation.
+    pub type Error = crate::store_impl::file::transaction::prepare::Error;
+}
+
+/// Errors for committing prepared reference transactions.
+pub mod commit {
+    /// The error returned by transaction commit.
+    pub type Error = crate::store_impl::file::transaction::commit::Error;
+}
