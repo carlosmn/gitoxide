@@ -254,6 +254,9 @@ pub mod branch {
             /// List remote-tracking as well as local branches.
             #[clap(long, short = 'a')]
             all: bool,
+            /// Only include branches whose full reference name starts with this prefix.
+            #[clap(long)]
+            prefix: Option<String>,
             #[cfg(feature = "reference-fuzzy-nucleo")]
             /// Fuzzy-match branch names against the given query.
             #[cfg(feature = "reference-fuzzy-nucleo")]

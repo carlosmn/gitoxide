@@ -558,6 +558,7 @@ pub fn main() -> Result<()> {
         Subcommands::Branch(platform) => match platform.cmd {
             branch::Subcommands::List {
                 all,
+                prefix,
                 #[cfg(feature = "reference-fuzzy-nucleo")]
                 fuzzy,
                 sort,
@@ -567,6 +568,7 @@ pub fn main() -> Result<()> {
                 let kind = if all { list::Kind::All } else { list::Kind::Local };
                 let options = list::Options {
                     kind,
+                    prefix,
                     #[cfg(feature = "reference-fuzzy-nucleo")]
                     fuzzy,
                     sort,
