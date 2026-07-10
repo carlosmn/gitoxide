@@ -33,7 +33,7 @@ impl Store {
         })?;
 
         let stack_borrow = lock(&self.stack);
-        let stack = stack_borrow.as_ref().expect("stack must be loaded");
+        let stack = &*stack_borrow;
         let mut iter = stack.iter_refs();
         let key = name.as_bstr().to_vec();
         let mut rec = Record::for_search(BlockType::Ref, Some(key));

@@ -20,7 +20,7 @@ pub struct Store {
     /// The namespace to use for reads and edits.
     pub namespace: Option<Namespace>,
     /// A cached stack that we should be able to refresh and update as necessary
-    pub(super) stack: OwnShared<Mutable<Option<stack::Stack>>>,
+    pub(super) stack: OwnShared<Mutable<stack::Stack>>,
 }
 
 impl Store {
@@ -32,13 +32,20 @@ impl Store {
             ..
         } = opts;
         let reftable_dir = git_dir.join("reftable");
+        let stack_options = Some(stack::Options::from_init_options(crate::store::init::Options {
+            object_hash,
+            ..Default::default()
+        }));
         Self {
             git_dir,
-            reftable_dir,
+            reftable_dir: reftable_dir.clone(),
             object_hash,
             write_reflog,
             namespace: None,
-            stack: OwnShared::new(Mutable::new(None)),
+            stack: OwnShared::new(Mutable::new(stack::Stack::empty(
+                reftable_dir,
+                stack_options,
+            ))),
         }
     }
 
@@ -54,17 +61,6 @@ impl Store {
 
     pub(super) fn assure_stack_uptodate(&self) -> super::Result<()> {
         let mut stack_slot = lock(&self.stack);
-        if let Some(stack) = stack_slot.as_mut() {
-            return stack.reload();
-        }
-
-        let options = Some(stack::Options::from_init_options(crate::store::init::Options {
-            object_hash: self.object_hash,
-            ..Default::default()
-        }));
-        let stack = stack::Stack::open(self.reftable_dir(), options)?;
-        *stack_slot = Some(stack);
-
-        Ok(())
+        stack_slot.reload()
     }
 }

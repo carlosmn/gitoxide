@@ -42,23 +42,29 @@ pub struct Stack {
     reftable_dir: PathBuf,
     opts: Options,
     tables: Vec<OwnShared<Table>>,
-    merged: Option<MergedTable>,
+    merged: MergedTable,
 }
 
 impl Stack {
-    pub fn open<P: AsRef<Path>>(dir: P, opts: Option<Options>) -> Result<Self> {
+    pub fn empty<P: AsRef<Path>>(dir: P, opts: Option<Options>) -> Self {
         let dir = dir.as_ref();
         let list_file = dir.join("tables.list");
+        let opts = opts.unwrap_or_default();
+        let merged = MergedTable::new(Vec::new(), opts.hash_id).expect("empty merged tables are always valid");
 
-        let mut me = Self {
+        Self {
             list_file,
             file: None,
             file_md: None,
             reftable_dir: dir.into(),
-            opts: opts.unwrap_or_default(),
+            opts,
             tables: Vec::new(),
-            merged: None,
-        };
+            merged,
+        }
+    }
+
+    pub fn open<P: AsRef<Path>>(dir: P, opts: Option<Options>) -> Result<Self> {
+        let mut me = Self::empty(dir, opts);
 
         me.reload_maybe_reuse(true)?;
 
@@ -185,7 +191,7 @@ impl Stack {
 
         let new_merged = MergedTable::new(new_tables.clone(), self.opts.hash_id)?;
 
-        self.merged = Some(new_merged);
+        self.merged = new_merged;
         self.tables = new_tables;
 
         Ok(())
@@ -251,8 +257,7 @@ impl Stack {
     }
 
     pub fn iter_refs(&self) -> MergedIter {
-        let merged = self.merged.as_ref().expect("we create it when we open");
-        MergedIter::from_merged(merged, BlockType::Ref)
+        MergedIter::from_merged(&self.merged, BlockType::Ref)
     }
 }
 

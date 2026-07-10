@@ -40,9 +40,7 @@ impl Store {
             .map_err(|err| io::Error::other(err.to_string()))?;
 
         let mut stack_slot = gix_features::threading::lock(&self.stack);
-        let stack = stack_slot
-            .as_mut()
-            .expect("BUG: stack should be loaded after assure_stack_uptodate()");
+        let stack = &mut *stack_slot;
 
         let mut iter = stack.iter_refs();
         let rec = match &filter {
